@@ -1,9 +1,9 @@
 use crate::objects::camera::Camera;
 use crate::objects::light::LightSource;
-use crate::objects::triangle_mesh::TriangleMesh;
+use crate::objects::model3d::InteractiveModel;
 
-struct Scene {
-    camera: Camera,
-    light_source: LightSource,
-    object: TriangleMesh
+pub struct Scene {
+    pub camera: Camera,
+    pub light_source: LightSource,
+    pub object: Box<dyn InteractiveModel>,
 }

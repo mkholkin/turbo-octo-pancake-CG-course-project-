@@ -1,6 +1,6 @@
 use crate::objects::Point;
-use crate::objects::model3d::{Material, Model3D, Rotate, Scale, Trigon};
-use nalgebra::{Matrix4, Point3, Vector4, Vector3};
+use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale, Trigon};
+use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::error::Error;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -15,39 +15,39 @@ pub struct TriangleMesh {
     model_matrix: Matrix4<f32>,
 }
 
-impl<'a> Model3D<'a> for TriangleMesh {
-    fn trigons(&'a self) -> &'a Vec<Trigon> {
+impl Model3D for TriangleMesh {
+    fn trigons(&self) -> &Vec<Trigon> {
         &self.trigons
     }
 
-    fn normals(&'a self) -> &'a Vec<Vector4<f32>> {
+    fn normals(&self) -> &Vec<Vector4<f32>> {
         &self.normals
     }
 
-    fn vertices(&'a self) -> &'a Vec<Point> {
+    fn vertices(&self) -> &Vec<Point> {
         &self.vertices
     }
 
-    fn vertices_world(&'a self) -> Vec<Point> {
+    fn vertices_world(&self) -> Vec<Point> {
         self.vertices
             .iter()
             .map(|v| Point3::from_homogeneous(self.model_matrix * v.to_homogeneous()).unwrap())
             .collect()
     }
 
-    fn material(&'a self) -> &'a Material {
+    fn material(&self) -> &Material {
         &self.material
     }
 
-    fn has_normals(&'a self) -> bool {
+    fn has_normals(&self) -> bool {
         !self.normals.is_empty()
     }
 
-    fn compute_normals(&'a mut self) {
+    fn compute_normals(&mut self) {
         todo!()
     }
 
-    fn model_matrix(&'a self) -> &'a Matrix4<f32> {
+    fn model_matrix(&self) -> &Matrix4<f32> {
         &self.model_matrix
     }
 }
@@ -217,3 +217,5 @@ impl TriangleMesh {
         Ok(mesh)
     }
 }
+
+impl InteractiveModel for TriangleMesh {}
