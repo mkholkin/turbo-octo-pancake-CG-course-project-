@@ -1,0 +1,63 @@
+use crate::objects::Point;
+use image::Rgb;
+use nalgebra::{Matrix4, Vector3};
+
+pub type Trigon = (usize, usize, usize);
+
+pub trait Model3D<'a> {
+    /// List of triangle faces
+    fn trigons(&'a self) -> &'a Vec<Trigon>;
+    // fn edges(&'a self) -> &'a Vec<>;
+
+    /// List of normalized external normals
+    fn normals(&'a self) -> &'a Vec<Vector3<f32>>;
+
+    /// List of vertices
+    fn vertices(&'a self) -> &'a Vec<Point>;
+
+    /// List of vertices multiplied by transformation matrix
+    fn vertices_world(&'a self) -> Vec<Point>;
+
+    /// Return material
+    fn material(&'a self) -> &'a Material;
+
+    /// Return true if external normals were calculated otherwise - false
+    fn has_normals(&'a self) -> bool;
+
+    /// Calculate external normals
+    fn compute_normals(&'a mut self);
+
+    /// Get model's transformation matrix
+    fn model_matrix(&'a self) -> &'a Matrix4<f32>;
+}
+
+pub trait Translate {
+    fn translate(&mut self, translation: (f32, f32, f32));
+}
+
+pub trait Rotate {
+    fn rotate(&mut self, axis_angle_radians: (f32, f32, f32));
+}
+
+pub trait Scale {
+    fn scale(&mut self, scaling: f32);
+}
+
+pub struct Material {
+    pub diffuse_reflectance_factor: f32,
+    pub specular_reflectance_factor: f32,
+    pub gloss: f32,
+    pub color: Rgb<u8>,
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Self {
+            diffuse_reflectance_factor: 0.5,
+            specular_reflectance_factor: 0.05,
+            gloss: 1.,
+            // color: Rgb([216, 219, 42]),
+            color: Rgb([208, 43, 43]),
+        }
+    }
+}
