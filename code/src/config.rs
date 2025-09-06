@@ -4,7 +4,7 @@ pub const BACKGROUND_COLOR: Rgba<u8> = Rgba([70, 70, 70, 255]);
 
 // Camera settings
 pub const FOV_DEGREES: f32 = 60.0;
-pub const ASPECT_RATIO: f32 = 1.0;
+pub const ASPECT_RATIO: f32 = 1.;
 pub const NEAR_PLANE: f32 = 0.1;
 pub const FAR_PLANE: f32 = 1000.0;
 

@@ -1,6 +1,6 @@
 use crate::objects::Point;
 use crate::objects::model3d::{Material, Model3D, Rotate, Scale, Trigon};
-use nalgebra::{Matrix4, Point3, UnitQuaternion, Vector3};
+use nalgebra::{Matrix4, Point3, Vector4, Vector3};
 use std::error::Error;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -8,7 +8,7 @@ use std::io::{BufRead, BufReader};
 pub struct TriangleMesh {
     vertices: Vec<Point>,
     vertices_world: Vec<Point>, // Вершины умноженные на матрицу преобразования
-    normals: Vec<Vector3<f32>>,
+    normals: Vec<Vector4<f32>>,
     trigons: Vec<Trigon>,
     material: Material,
 
@@ -20,7 +20,7 @@ impl<'a> Model3D<'a> for TriangleMesh {
         &self.trigons
     }
 
-    fn normals(&'a self) -> &'a Vec<Vector3<f32>> {
+    fn normals(&'a self) -> &'a Vec<Vector4<f32>> {
         &self.normals
     }
 
@@ -62,7 +62,7 @@ impl Rotate for TriangleMesh {
         self.model_matrix = self.model_matrix * rotation_matrix;
 
         for n in &mut self.normals {
-            *n = Vector3::from_homogeneous(rotation_matrix * n.to_homogeneous()).unwrap();
+            *n = rotation_matrix * *n;
         }
     }
 }
@@ -139,7 +139,7 @@ impl TriangleMesh {
         let reader = BufReader::new(file);
 
         let mut mesh = TriangleMesh::new();
-        let mut temp_normals: Vec<Vector3<f32>> = Vec::new();
+        let mut temp_normals: Vec<Vector4<f32>> = Vec::new();
 
         for (i, line) in reader.lines().enumerate() {
             let line = line?;
@@ -163,7 +163,7 @@ impl TriangleMesh {
                     let x = parts[1].parse::<f32>()?;
                     let y = parts[2].parse::<f32>()?;
                     let z = parts[3].parse::<f32>()?;
-                    temp_normals.push(Vector3::new(x, y, z).normalize());
+                    temp_normals.push(Vector4::new(x, y, z, 0.).normalize());
                 }
                 // Parse a face line: `f v1//vn1 v2//vn2 v3//vn3`
                 "f" => {

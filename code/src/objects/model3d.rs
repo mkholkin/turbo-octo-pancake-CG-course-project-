@@ -1,6 +1,6 @@
 use crate::objects::Point;
 use image::Rgb;
-use nalgebra::{Matrix4, Vector3};
+use nalgebra::{Matrix4, Vector4};
 
 pub type Trigon = (usize, usize, usize);
 
@@ -10,7 +10,7 @@ pub trait Model3D<'a> {
     // fn edges(&'a self) -> &'a Vec<>;
 
     /// List of normalized external normals
-    fn normals(&'a self) -> &'a Vec<Vector3<f32>>;
+    fn normals(&'a self) -> &'a Vec<Vector4<f32>>;
 
     /// List of vertices
     fn vertices(&'a self) -> &'a Vec<Point>;

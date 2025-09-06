@@ -9,7 +9,10 @@ use crate::objects::camera::Camera;
 use crate::objects::model3d::{Material, Scale};
 use crate::objects::triangle_mesh::TriangleMesh;
 
-use crate::config::{AMBIENT_INTENSITY, ASPECT_RATIO, BACKGROUND_COLOR, FAR_PLANE, FOV_DEGREES, LIGHT_SCATTERING, NEAR_PLANE, ROTATION_SENSITIVITY_FACTOR, SCALING_SENSITIVITY_FACTOR};
+use crate::config::{
+    AMBIENT_INTENSITY, ASPECT_RATIO, BACKGROUND_COLOR, FAR_PLANE, FOV_DEGREES, LIGHT_SCATTERING,
+    NEAR_PLANE, ROTATION_SENSITIVITY_FACTOR, SCALING_SENSITIVITY_FACTOR,
+};
 use crate::objects::light::LightSource;
 use crate::objects::model3d::{Model3D, Rotate};
 use crate::utils::triangles::barycentric;
@@ -17,10 +20,10 @@ use eframe::egui::{CentralPanel, Context, TextureHandle};
 use eframe::{App, Frame, NativeOptions};
 use image::{GenericImage, Rgb, Rgba, RgbaImage};
 use imageproc::definitions::HasWhite;
-use nalgebra::{Matrix4, Point3, Vector3};
+use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
-const IMG_WIDTH: u32 = 800;
-const IMG_HEIGHT: u32 = 800;
+const IMG_WIDTH: u32 = 1000;
+const IMG_HEIGHT: u32 = 1000;
 
 struct MyEguiApp {
     texture: Option<TextureHandle>,
@@ -49,7 +52,7 @@ impl Default for MyEguiApp {
             intensity: 15.,
             color: Rgb::white(),
         };
-        let object = TriangleMesh::from_obj("data/Apple.obj").unwrap();
+        let object = TriangleMesh::from_obj("data/Banana.obj").unwrap();
         Self {
             texture: None,
             frame_counter: 0,
@@ -288,11 +291,13 @@ impl TransparencyPerformer {
 
         for (i, tri) in obj.trigons().iter().enumerate() {
             let surface_point = &obj.vertices_world()[tri.0];
-            let normal = if obj.normals()[i].dot(&(light_source.pos - surface_point)) > 0.0 {
-                obj.normals()[i]
-            } else {
-                obj.normals()[i] * -1.
-            };
+            let normal =
+                if obj.normals()[i].dot(&(light_source.pos - surface_point).to_homogeneous()) > 0.0
+                {
+                    obj.normals()[i]
+                } else {
+                    obj.normals()[i] * -1.
+                };
 
             let color = calculate_color(
                 &obj.material(),
@@ -316,16 +321,16 @@ impl TransparencyPerformer {
 }
 
 fn compute_reflection(
-    light_direction: &Vector3<f32>,
-    surface_normal: &Vector3<f32>,
-) -> Vector3<f32> {
+    light_direction: &Vector4<f32>,
+    surface_normal: &Vector4<f32>,
+) -> Vector4<f32> {
     let beta = 2. * light_direction.dot(surface_normal);
     (-1. * light_direction) + (beta * surface_normal)
 }
 
 fn calculate_color(
     material: &Material,
-    normal: &Vector3<f32>,
+    normal: &Vector4<f32>,
     surface_point: &Point3<f32>,
     light_source: &LightSource,
     eye_pos: &Point3<f32>,
@@ -333,8 +338,8 @@ fn calculate_color(
     let light_direction = light_source.pos - surface_point;
     let dist = light_direction.norm();
 
-    let light_direction = light_direction.normalize();
-    let view_direction = (eye_pos - surface_point).normalize();
+    let light_direction = light_direction.normalize().to_homogeneous();
+    let view_direction = (eye_pos - surface_point).normalize().to_homogeneous();
 
     let reflection_direction = compute_reflection(&light_direction, &normal);
 
@@ -400,7 +405,10 @@ impl MyEguiApp {
         if scroll_delta.y != 0.0 {
             let scaling_factor =
                 (1. + scroll_delta.y.max(-200.) * SCALING_SENSITIVITY_FACTOR).max(f32::EPSILON);
+            println!("{}", scroll_delta);
+            println!("{}", scaling_factor);
             self.object.scale(scaling_factor);
+            println!("{}", self.object.model_matrix());
             self.update_frame(ctx);
         }
     }
