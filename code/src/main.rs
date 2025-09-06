@@ -8,6 +8,7 @@ mod utils;
 use crate::objects::camera::Camera;
 use crate::objects::model3d::{Material};
 use crate::objects::triangle_mesh::TriangleMesh;
+use std::time::Instant;
 
 use crate::config::{
     AMBIENT_INTENSITY, ASPECT_RATIO, BACKGROUND_COLOR, FAR_PLANE, FOV_DEGREES, LIGHT_SCATTERING,
@@ -28,10 +29,12 @@ const IMG_HEIGHT: u32 = 1000;
 
 struct MyEguiApp {
     texture: Option<TextureHandle>,
-    frame_counter: u32,
     frame: RgbImage,
     scene: Scene,
     renderer: Box<dyn Renderer>,
+
+    fps: f32,
+    last_frame_time: Instant,
 }
 
 impl<'a> Default for MyEguiApp {
@@ -60,10 +63,11 @@ impl<'a> Default for MyEguiApp {
 
         Self {
             texture: None,
-            frame_counter: 0,
             frame: RgbImage::from_pixel(IMG_WIDTH, IMG_HEIGHT, BACKGROUND_COLOR),
             scene,
             renderer: Box::new(ZBufferPerformer::new(IMG_WIDTH, IMG_HEIGHT)),
+            fps: 0.0,
+            last_frame_time: Instant::now(),
         }
     }
 }
@@ -161,19 +165,24 @@ impl MyEguiApp {
             self.update_frame(ctx);
         }
     }
+
+    fn update_fps(&mut self) {
+        let now = Instant::now();
+        let frame_time = now.duration_since(self.last_frame_time).as_secs_f32();
+        self.last_frame_time = now;
+        self.fps = 1.0 / frame_time;
+    }
 }
 
 impl App for MyEguiApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
-        // Увеличиваем счетчик кадров для анимации
-        self.frame_counter += 1;
-
+        self.update_fps();
         self.mouse_wheel_scaling(ctx);
         self.mouse_drag_rotation(ctx);
 
         CentralPanel::default().show(ctx, |ui| {
             ui.heading("Анимация в egui");
-            ui.label(format!("Текущий кадр: {}", self.frame_counter));
+            ui.label(format!("FPS: {}", self.fps as u32));
 
             // 6. Отображаем изображение с помощью обработчика текстуры
             if let Some(texture) = &self.texture {
