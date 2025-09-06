@@ -1,6 +1,6 @@
-use image::Rgba;
+use image::{Rgb};
 
-pub const BACKGROUND_COLOR: Rgba<u8> = Rgba([70, 70, 70, 255]);
+pub const BACKGROUND_COLOR: Rgb<u8> = Rgb([70, 70, 70]);
 
 // Camera settings
 pub const FOV_DEGREES: f32 = 60.0;

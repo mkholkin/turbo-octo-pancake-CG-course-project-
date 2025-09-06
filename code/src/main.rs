@@ -18,7 +18,8 @@ use crate::objects::model3d::{Model3D, Rotate};
 use crate::utils::triangles::barycentric;
 use eframe::egui::{CentralPanel, Context, TextureHandle};
 use eframe::{App, Frame, NativeOptions};
-use image::{GenericImage, Rgb, Rgba, RgbaImage};
+use egui::Scene;
+use image::{GenericImage, Rgb, RgbImage};
 use imageproc::definitions::HasWhite;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
@@ -28,7 +29,7 @@ const IMG_HEIGHT: u32 = 1000;
 struct MyEguiApp {
     texture: Option<TextureHandle>,
     frame_counter: u32,
-    frame: RgbaImage,
+    frame: RgbImage,
     camera: Camera,
     object: TriangleMesh,
     light_source: LightSource,
@@ -56,7 +57,7 @@ impl Default for MyEguiApp {
         Self {
             texture: None,
             frame_counter: 0,
-            frame: RgbaImage::from_pixel(IMG_WIDTH, IMG_HEIGHT, BACKGROUND_COLOR),
+            frame: RgbImage::from_pixel(IMG_WIDTH, IMG_HEIGHT, BACKGROUND_COLOR),
             camera,
             object,
             light_source,
@@ -102,7 +103,7 @@ impl ZBufferPerformer {
         self.z_buffer[index]
     }
 
-    fn draw_triangle(&mut self, image: &mut RgbaImage, tri: &[Point3<f32>; 3], color: Rgba<u8>) {
+    fn draw_triangle(&mut self, image: &mut RgbImage, tri: &[Point3<f32>; 3], color: Rgb<u8>) {
         let [p1, p2, p3] = *tri;
 
         // Find the bounding box of the triangle to optimize rasterization.
@@ -139,7 +140,7 @@ impl ZBufferPerformer {
 
     pub fn create_frame<'a>(
         &mut self,
-        image: &'a mut RgbaImage,
+        image: &'a mut RgbImage,
         obj: &'a impl Model3D<'a>,
         camera: &'a Camera,
         light_source: &'a LightSource,
@@ -148,7 +149,7 @@ impl ZBufferPerformer {
         let height = image.height();
 
         self.reset(width, height);
-        image.fill(0);
+        image.fill(70);
 
         // TODO: organize this transformations
         let mvp_matrix = camera.camera_matrix * obj.model_matrix();
@@ -196,7 +197,7 @@ impl ZBufferPerformer {
                     camera_dim_v[tri.1],
                     camera_dim_v[tri.2],
                 ],
-                Rgba([color[0], color[1], color[2], 255]),
+                color,
             )
         }
     }
@@ -205,9 +206,14 @@ impl ZBufferPerformer {
 struct TransparencyPerformer {}
 
 impl TransparencyPerformer {
-    fn draw_triangle(&mut self, image: &mut RgbaImage, tri: &[Point3<f32>; 3], color: Rgba<u8>) {
+    fn draw_triangle(
+        &mut self,
+        image: &mut RgbImage,
+        tri: &[Point3<f32>; 3],
+        color: Rgb<u8>,
+        alpha: f32,
+    ) {
         let [p1, p2, p3] = *tri;
-        let alpha = color[3] as f32 / 255.0;
 
         // Find the bounding box of the triangle to optimize rasterization.
         let min_x = p1.x.min(p2.x).min(p3.x).round() as u32;
@@ -235,11 +241,10 @@ impl TransparencyPerformer {
                     image.put_pixel(
                         x,
                         y,
-                        Rgba([
+                        Rgb([
                             final_r.round() as u8,
                             final_g.round() as u8,
                             final_b.round() as u8,
-                            255,
                         ]),
                     );
                 }
@@ -249,7 +254,7 @@ impl TransparencyPerformer {
 
     pub fn create_frame<'a>(
         &mut self,
-        image: &'a mut RgbaImage,
+        image: &'a mut RgbImage,
         obj: &'a impl Model3D<'a>,
         camera: &'a Camera,
         light_source: &'a LightSource,
@@ -257,7 +262,7 @@ impl TransparencyPerformer {
         let width = image.width();
         let height = image.height();
 
-        image.fill(0);
+        image.fill(70);
 
         // TODO: organize this transformations
         let mvp_matrix = camera.camera_matrix * obj.model_matrix();
@@ -314,7 +319,8 @@ impl TransparencyPerformer {
                     camera_dim_v[tri.1],
                     camera_dim_v[tri.2],
                 ],
-                Rgba([color[0], color[1], color[2], 60]),
+                Rgb([color[0], color[1], color[2]]),
+                obj.material().opacity,
             )
         }
     }
@@ -369,13 +375,6 @@ fn calculate_color(
     Rgb([r.round() as u8, g.round() as u8, b.round() as u8])
 }
 
-fn image_to_egui_texture(ctx: &Context, name: &str, img: &RgbaImage) -> TextureHandle {
-    let size = [img.width() as _, img.height() as _];
-    let pixels = img.as_flat_samples();
-    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
-    ctx.load_texture(name, color_image, Default::default())
-}
-
 impl MyEguiApp {
     fn update_frame(&mut self, ctx: &Context) {
         self.renderer.create_frame(
@@ -385,7 +384,7 @@ impl MyEguiApp {
             &self.light_source,
         );
 
-        let egui_image = egui::ColorImage::from_rgba_unmultiplied(
+        let egui_image = egui::ColorImage::from_rgb(
             [self.frame.width() as usize, self.frame.height() as usize],
             self.frame.as_raw(),
         );
@@ -405,10 +404,7 @@ impl MyEguiApp {
         if scroll_delta.y != 0.0 {
             let scaling_factor =
                 (1. + scroll_delta.y.max(-200.) * SCALING_SENSITIVITY_FACTOR).max(f32::EPSILON);
-            println!("{}", scroll_delta);
-            println!("{}", scaling_factor);
             self.object.scale(scaling_factor);
-            println!("{}", self.object.model_matrix());
             self.update_frame(ctx);
         }
     }

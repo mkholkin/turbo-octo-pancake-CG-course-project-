@@ -48,6 +48,7 @@ pub struct Material {
     pub specular_reflectance_factor: f32,
     pub gloss: f32,
     pub color: Rgb<u8>,
+    pub opacity: f32
 }
 
 impl Default for Material {
@@ -58,6 +59,7 @@ impl Default for Material {
             gloss: 1.,
             // color: Rgb([216, 219, 42]),
             color: Rgb([208, 43, 43]),
+            opacity: 0.1
         }
     }
 }
