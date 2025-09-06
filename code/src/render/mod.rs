@@ -1,19 +1,60 @@
 pub mod transparency;
 pub mod z_buffer;
 
+use crate::config::{AMBIENT_INTENSITY, LIGHT_SCATTERING};
 use crate::objects::light::LightSource;
 use crate::objects::model3d::Material;
 use crate::scene::Scene;
 use image::{Rgb, RgbImage};
-use nalgebra::{Point3, Vector3};
+use nalgebra::{Point3, Vector4};
 
-fn color(
-    light_source: &LightSource,
-    surface_normal: &Vector3<f32>,
-    surface_point: Point3<f32>,
+fn compute_reflection(
+    light_direction: &Vector4<f32>,
+    surface_normal: &Vector4<f32>,
+) -> Vector4<f32> {
+    let beta = 2. * light_direction.dot(surface_normal);
+    (-1. * light_direction) + (beta * surface_normal)
+}
+
+fn calculate_color(
     material: &Material,
+    normal: &Vector4<f32>,
+    surface_point: &Point3<f32>,
+    light_source: &LightSource,
+    eye_pos: &Point3<f32>,
 ) -> Rgb<u8> {
-    todo!()
+    let light_direction = light_source.pos - surface_point;
+    let dist = light_direction.norm();
+
+    let light_direction = light_direction.normalize().to_homogeneous();
+    let view_direction = (eye_pos - surface_point).normalize().to_homogeneous();
+
+    let reflection_direction = compute_reflection(&light_direction, &normal);
+
+    let light_intensity = light_source.intensity / (dist + LIGHT_SCATTERING);
+
+    let diffuse_intensity = material.diffuse_reflectance_factor
+        * light_intensity
+        * normal.dot(&light_direction).max(0.)
+        + AMBIENT_INTENSITY;
+    let specular_intensity = material.specular_reflectance_factor
+        * light_intensity
+        * reflection_direction
+            .dot(&view_direction)
+            .max(0.)
+            .powf(material.gloss);
+
+    let r = (material.color[0] as f32 * diffuse_intensity
+        + light_source.color[0] as f32 * specular_intensity)
+        .clamp(0., 255.);
+    let g = (material.color[1] as f32 * diffuse_intensity
+        + light_source.color[1] as f32 * specular_intensity)
+        .clamp(0., 255.);
+    let b = (material.color[2] as f32 * diffuse_intensity
+        + light_source.color[2] as f32 * specular_intensity)
+        .clamp(0., 255.);
+
+    Rgb([r.round() as u8, g.round() as u8, b.round() as u8])
 }
 
 pub trait Renderer {
