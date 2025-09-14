@@ -4,6 +4,7 @@ use crate::scene::Scene;
 use crate::utils::triangles::barycentric;
 use image::{Rgb, RgbImage};
 use nalgebra::{Matrix4, Point3};
+use crate::objects::model3d::Model3D;
 
 pub struct TransparencyPerformer {}
 
@@ -92,7 +93,7 @@ impl Renderer for TransparencyPerformer {
             })
             .collect();
 
-        for (i, tri) in scene.object.trigons().iter().enumerate() {
+        for (i, tri) in scene.object.triangles().iter().enumerate() {
             let surface_point = &scene.object.vertices_world()[tri.0];
             let normal = if scene.object.normals()[i]
                 .dot(&(scene.light_source.pos - surface_point).to_homogeneous())
@@ -105,7 +106,7 @@ impl Renderer for TransparencyPerformer {
 
             let color = calculate_color(
                 &scene.object.material(),
-                &normal,
+                &normal.xyz(),
                 surface_point,
                 &scene.light_source,
                 &scene.camera.pos,

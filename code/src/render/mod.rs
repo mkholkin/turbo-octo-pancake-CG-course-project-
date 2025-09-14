@@ -6,28 +6,28 @@ use crate::objects::light::LightSource;
 use crate::objects::model3d::Material;
 use crate::scene::Scene;
 use image::{Rgb, RgbImage};
-use nalgebra::{Point3, Vector4};
+use nalgebra::{Point3, Vector3, Vector4};
 
 fn compute_reflection(
-    light_direction: &Vector4<f32>,
-    surface_normal: &Vector4<f32>,
-) -> Vector4<f32> {
+    light_direction: &Vector3<f32>,
+    surface_normal: &Vector3<f32>,
+) -> Vector3<f32> {
     let beta = 2. * light_direction.dot(surface_normal);
     (-1. * light_direction) + (beta * surface_normal)
 }
 
 fn calculate_color(
     material: &Material,
-    normal: &Vector4<f32>,
+    normal: &Vector3<f32>,
     surface_point: &Point3<f32>,
     light_source: &LightSource,
     eye_pos: &Point3<f32>,
 ) -> Rgb<u8> {
-    let light_direction = light_source.pos - surface_point;
+    let mut light_direction = light_source.pos - surface_point;
     let dist = light_direction.norm();
 
-    let light_direction = light_direction.normalize().to_homogeneous();
-    let view_direction = (eye_pos - surface_point).normalize().to_homogeneous();
+    light_direction.normalize_mut();
+    let view_direction = (eye_pos - surface_point).normalize();
 
     let reflection_direction = compute_reflection(&light_direction, &normal);
 

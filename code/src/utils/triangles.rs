@@ -1,4 +1,4 @@
-use nalgebra::{Point, Point3, Vector3};
+use nalgebra::{Point3, Vector3};
 
 pub fn barycentric(
     p: &Point3<f32>,
@@ -6,10 +6,28 @@ pub fn barycentric(
     b: &Point3<f32>,
     c: &Point3<f32>,
 ) -> Vector3<f32> {
-    let denominator = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
-    let u = ((b.y - c.y) * (p.x - c.x) + (c.x - b.x) * (p.y - c.y)) / denominator;
-    let v = ((c.y - a.y) * (p.x - c.x) + (a.x - c.x) * (p.y - c.y)) / denominator;
-    let w = 1.0 - u - v;
+    let v0 = *b - *a;
+    let v1 = *c - *a;
+    let v2 = *p - *a;
+
+    // Calculate dot products
+    let dot00 = v0.dot(&v0);
+    let dot01 = v0.dot(&v1);
+    let dot02 = v0.dot(&v2);
+    let dot11 = v1.dot(&v1);
+    let dot12 = v1.dot(&v2);
+
+    // Calculate the inverse of the determinant.
+    // This is a common way to calculate barycentric coordinates without division by zero issues
+    // if the triangle is degenerate (i.e., its vertices are collinear).
+    let inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01);
+
+    // Calculate the coordinates u and v.
+    let v = (dot11 * dot02 - dot01 * dot12) * inv_denom;
+    let w = (dot00 * dot12 - dot01 * dot02) * inv_denom;
+
+    // The third coordinate w is derived from the fact that u + v + w = 1.
+    let u = 1.0 - v - w;
 
     Vector3::new(u, v, w)
 }

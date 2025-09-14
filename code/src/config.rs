@@ -1,4 +1,4 @@
-use image::{Rgb};
+use image::Rgb;
 
 pub const BACKGROUND_COLOR: Rgb<u8> = Rgb([70, 70, 70]);
 

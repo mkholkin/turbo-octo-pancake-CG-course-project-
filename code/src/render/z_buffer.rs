@@ -1,6 +1,6 @@
+use crate::objects::model3d::Model3D;
 use crate::render::{Renderer, calculate_color};
 use crate::scene::Scene;
-use crate::utils::triangles::barycentric;
 use image::{Rgb, RgbImage};
 use nalgebra::{Matrix4, Point3};
 
@@ -40,35 +40,60 @@ impl ZBufferPerformer {
         self.z_buffer[index]
     }
 
-    fn draw_triangle(&mut self, image: &mut RgbImage, tri: &[Point3<f32>; 3], color: Rgb<u8>) {
+    fn draw_triangle(
+        &mut self,
+        image: &mut RgbImage,
+        tri: &[Point3<f32>; 3],
+        tri_colors: &[Rgb<u8>; 3],
+    ) {
         let [p1, p2, p3] = *tri;
 
-        // Find the bounding box of the triangle to optimize rasterization.
-        let min_x = p1.x.min(p2.x).min(p3.x).round() as u32;
-        let max_x = p1.x.max(p2.x).max(p3.x).round() as u32;
-        let min_y = p1.y.min(p2.y).min(p3.y).round() as u32;
-        let max_y = p1.y.max(p2.y).max(p3.y).round() as u32;
+        // Find the bounding box, clamping to the image dimensions.
+        let min_x = (p1.x.min(p2.x).min(p3.x).round() as u32).max(0);
+        let max_x = (p1.x.max(p2.x).max(p3.x).round() as u32).min(self.width - 1);
+        let min_y = (p1.y.min(p2.y).min(p3.y).round() as u32).max(0);
+        let max_y = (p1.y.max(p2.y).max(p3.y).round() as u32).min(self.height - 1);
 
-        // Clamp bounding box to image boundaries.
-        let min_x = min_x.max(0);
-        let max_x = max_x.min(self.width - 1);
-        let min_y = min_y.max(0);
-        let max_y = max_y.min(self.height - 1);
+        // Pre-calculate common components to avoid redundant calculations inside the loop.
+        let denom = (p2.y - p3.y) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.y - p3.y);
 
         for y in min_y..=max_y {
             for x in min_x..=max_x {
-                let bary = barycentric(&Point3::new(x as f32, y as f32, 0.), &p1, &p2, &p3);
+                // Calculate barycentric coordinates.
+                let bary_x_num =
+                    (p2.y - p3.y) * (x as f32 - p3.x) + (p3.x - p2.x) * (y as f32 - p3.y);
+                let bary_y_num =
+                    (p3.y - p1.y) * (x as f32 - p3.x) + (p1.x - p3.x) * (y as f32 - p3.y);
+
+                let bary = Point3::new(
+                    bary_x_num / denom,
+                    bary_y_num / denom,
+                    1.0 - bary_x_num / denom - bary_y_num / denom,
+                );
 
                 // Check if the pixel is inside the triangle.
                 if bary.x >= 0.0 && bary.y >= 0.0 && bary.z >= 0.0 {
-                    // Interpolate the Z-value using barycentric coordinates.
                     let z = p1.z * bary.x + p2.z * bary.y + p3.z * bary.z;
 
                     // Perform the Z-buffer test.
                     if z < self.get_depth(x, y) {
-                        // If the new pixel is closer, update the Z-buffer and draw the pixel.
                         self.set_depth(x, y, z);
-                        image.put_pixel(x, y, color);
+
+                        // Interpolate colors correctly for each channel.
+                        let r = (bary.x * tri_colors[0].0[0] as f32
+                            + bary.y * tri_colors[1].0[0] as f32
+                            + bary.z * tri_colors[2].0[0] as f32)
+                            .clamp(0.0, 255.0) as u8;
+                        let g = (bary.x * tri_colors[0].0[1] as f32
+                            + bary.y * tri_colors[1].0[1] as f32
+                            + bary.z * tri_colors[2].0[1] as f32)
+                            .clamp(0.0, 255.0) as u8;
+                        let b = (bary.x * tri_colors[0].0[2] as f32
+                            + bary.y * tri_colors[1].0[2] as f32
+                            + bary.z * tri_colors[2].0[2] as f32)
+                            .clamp(0.0, 255.0) as u8;
+
+                        image.put_pixel(x, y, Rgb([r, g, b]));
                     }
                 }
             }
@@ -114,14 +139,17 @@ impl Renderer for ZBufferPerformer {
             })
             .collect();
 
-        for (i, tri) in scene.object.trigons().iter().enumerate() {
-            let color = calculate_color(
-                &scene.object.material(),
-                &scene.object.normals()[i],
-                &scene.object.vertices_world()[tri.0],
-                &scene.light_source,
-                &scene.camera.pos,
-            );
+        for (i, tri) in scene.object.triangles().iter().enumerate() {
+            // TODO: replace Triangle with [usize; 3]
+            let tri_colros = [tri.0, tri.1, tri.2].map(|v_idx| {
+                calculate_color(
+                    &scene.object.material(),
+                    &scene.object.normals()[i].xyz(),
+                    &scene.object.vertices_world()[v_idx],
+                    &scene.light_source,
+                    &scene.camera.pos,
+                )
+            });
 
             self.draw_triangle(
                 image,
@@ -130,7 +158,7 @@ impl Renderer for ZBufferPerformer {
                     camera_dim_v[tri.1],
                     camera_dim_v[tri.2],
                 ],
-                color,
+                &tri_colros,
             )
         }
     }

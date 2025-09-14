@@ -1,28 +1,30 @@
 mod config;
-mod dcel;
 mod objects;
 mod render;
 mod scene;
 mod utils;
 
 use crate::objects::camera::Camera;
-use crate::objects::model3d::{Material};
 use crate::objects::triangle_mesh::TriangleMesh;
 use std::time::Instant;
 
 use crate::config::{
-    AMBIENT_INTENSITY, ASPECT_RATIO, BACKGROUND_COLOR, FAR_PLANE, FOV_DEGREES, LIGHT_SCATTERING,
-    NEAR_PLANE, ROTATION_SENSITIVITY_FACTOR, SCALING_SENSITIVITY_FACTOR,
+    ASPECT_RATIO, BACKGROUND_COLOR, FAR_PLANE, FOV_DEGREES, NEAR_PLANE,
+    ROTATION_SENSITIVITY_FACTOR, SCALING_SENSITIVITY_FACTOR,
 };
 use crate::objects::light::LightSource;
+use crate::objects::morph::Morph;
 use crate::render::Renderer;
 use crate::render::z_buffer::ZBufferPerformer;
 use crate::scene::Scene;
 use eframe::egui::{CentralPanel, Context, TextureHandle};
 use eframe::{App, Frame, NativeOptions};
+use egui::{InputState, Key};
 use image::{Rgb, RgbImage};
 use imageproc::definitions::HasWhite;
-use nalgebra::{Point3, Vector3, Vector4};
+use nalgebra::{Point3, Vector3};
+use crate::objects::model3d::{Rotate, Scale};
+use crate::render::transparency::TransparencyPerformer;
 
 const IMG_WIDTH: u32 = 1000;
 const IMG_HEIGHT: u32 = 1000;
@@ -50,10 +52,14 @@ impl<'a> Default for MyEguiApp {
         );
         let light_source = LightSource {
             pos: Point3::new(0., 0., 3.),
-            intensity: 15.,
+            intensity: 10.,
             color: Rgb::white(),
         };
-        let object = Box::new(TriangleMesh::from_obj("data/Banana.obj").unwrap());
+        // let mut object = Box::new(TriangleMesh::from_obj("data/apple.obj").unwrap());
+        let object = Box::new(Morph::new(
+            TriangleMesh::from_obj("data/cube.obj").unwrap(),
+            TriangleMesh::from_obj("data/fixed_sphere.obj").unwrap(),
+        ));
 
         let scene = Scene {
             camera,
@@ -66,6 +72,7 @@ impl<'a> Default for MyEguiApp {
             frame: RgbImage::from_pixel(IMG_WIDTH, IMG_HEIGHT, BACKGROUND_COLOR),
             scene,
             renderer: Box::new(ZBufferPerformer::new(IMG_WIDTH, IMG_HEIGHT)),
+            // renderer: Box::new(TransparencyPerformer {}),
             fps: 0.0,
             last_frame_time: Instant::now(),
         }
@@ -117,6 +124,23 @@ impl MyEguiApp {
         }
     }
 
+    unsafe fn update_morph_phase(&mut self, ctx: &Context) {
+        static mut T: f32 = 0.;
+        let t_step = 0.05;
+
+        ctx.input(|i: &InputState| unsafe {
+            if i.key_pressed(Key::Plus) {
+                T = (T + t_step).min(1.);
+            }
+            if i.key_pressed(Key::Minus) {
+                T = (T - t_step).max(0.);
+            }
+        });
+
+        self.scene.object.update(T);
+        self.update_frame(ctx);
+    }
+
     fn update_fps(&mut self) {
         let now = Instant::now();
         let frame_time = now.duration_since(self.last_frame_time).as_secs_f32();
@@ -130,6 +154,8 @@ impl App for MyEguiApp {
         self.update_fps();
         self.mouse_wheel_scaling(ctx);
         self.mouse_drag_rotation(ctx);
+        unsafe { self.update_morph_phase(ctx); }
+
 
         CentralPanel::default().show(ctx, |ui| {
             ui.heading("Анимация в egui");

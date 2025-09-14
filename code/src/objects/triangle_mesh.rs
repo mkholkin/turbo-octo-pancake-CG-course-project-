@@ -1,5 +1,6 @@
 use crate::objects::Point;
-use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale, Trigon};
+use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale, Triangle};
+use crate::utils::morphing::center_of_mass;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::error::Error;
 use std::fs;
@@ -9,15 +10,15 @@ pub struct TriangleMesh {
     vertices: Vec<Point>,
     vertices_world: Vec<Point>, // Вершины умноженные на матрицу преобразования
     normals: Vec<Vector4<f32>>,
-    trigons: Vec<Trigon>,
+    triangles: Vec<Triangle>,
     material: Material,
 
     model_matrix: Matrix4<f32>,
 }
 
 impl Model3D for TriangleMesh {
-    fn trigons(&self) -> &Vec<Trigon> {
-        &self.trigons
+    fn triangles(&self) -> &Vec<Triangle> {
+        &self.triangles
     }
 
     fn normals(&self) -> &Vec<Vector4<f32>> {
@@ -29,6 +30,7 @@ impl Model3D for TriangleMesh {
     }
 
     fn vertices_world(&self) -> Vec<Point> {
+        // TODO: iter
         self.vertices
             .iter()
             .map(|v| Point3::from_homogeneous(self.model_matrix * v.to_homogeneous()).unwrap())
@@ -79,7 +81,7 @@ impl TriangleMesh {
             vertices: Vec::new(),
             vertices_world: Vec::new(),
             normals: Vec::new(),
-            trigons: Vec::new(),
+            triangles: Vec::new(),
             material: Material::default(),
             model_matrix: Matrix4::identity(),
         }
@@ -87,6 +89,13 @@ impl TriangleMesh {
 }
 
 impl TriangleMesh {
+    fn centerify(&mut self) {
+        let center = center_of_mass(self);
+        for v in &mut self.vertices {
+            *v -= center;
+        }
+    }
+
     /// Helper function for parsing faces
     /// Parses a single component of a face line (`v`, `v/vt`, `v//vn`, `v/vt/vn`)
     /// and validates the vertex and normal indices.
@@ -195,7 +204,7 @@ impl TriangleMesh {
                     )?;
 
                     // Push the first triangle's vertex indices.
-                    mesh.trigons.push((v1_idx, v2_idx, v3_idx));
+                    mesh.triangles.push((v1_idx, v2_idx, v3_idx));
 
                     // Push the normal vector it exists.
                     let n_idx = n1_opt.or(n2_opt).or(n3_opt);
@@ -213,8 +222,14 @@ impl TriangleMesh {
         if !mesh.has_normals() {
             mesh.compute_normals();
         }
-
+        
+        mesh.centerify();
+        
         Ok(mesh)
+    }
+
+    pub fn vertices_mut(&mut self) -> &mut Vec<Point> {
+        &mut self.vertices
     }
 }
 

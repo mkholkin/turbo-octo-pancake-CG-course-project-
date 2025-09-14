@@ -2,11 +2,11 @@ use crate::objects::Point;
 use image::Rgb;
 use nalgebra::{Matrix4, Vector4};
 
-pub type Trigon = (usize, usize, usize);
+pub type Triangle = (usize, usize, usize);
 
 pub trait Model3D {
     /// List of triangle faces
-    fn trigons(&self) -> &Vec<Trigon>;
+    fn triangles(&self) -> &Vec<Triangle>;
     // fn edges(&'a self) -> &'a Vec<>;
 
     /// List of normalized external normals
@@ -59,7 +59,6 @@ impl Default for Material {
             diffuse_reflectance_factor: 0.5,
             specular_reflectance_factor: 0.05,
             gloss: 1.,
-            // color: Rgb([216, 219, 42]),
             color: Rgb([208, 43, 43]),
             opacity: 0.1,
         }
