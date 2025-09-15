@@ -11,7 +11,7 @@ pub const FAR_PLANE: f32 = 1000.0;
 // Light behavior settings
 pub const AMBIENT_INTENSITY: f32 = 0.05;
 pub const DIFFUSION_FACTOR: f32 = 0.1;
-pub const LIGHT_SCATTERING: f32 = 0.1;
+pub const LIGHT_SCATTERING: f32 = 2.;
 
 // User interaction settings
 pub const SCALING_SENSITIVITY_FACTOR: f32 = 0.002;

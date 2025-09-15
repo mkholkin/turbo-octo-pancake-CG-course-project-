@@ -55,11 +55,11 @@ impl<'a> Default for MyEguiApp {
             intensity: 10.,
             color: Rgb::white(),
         };
-        // let mut object = Box::new(TriangleMesh::from_obj("data/apple.obj").unwrap());
-        let object = Box::new(Morph::new(
-            TriangleMesh::from_obj("data/cube.obj").unwrap(),
-            TriangleMesh::from_obj("data/fixed_sphere.obj").unwrap(),
-        ));
+        let mut object = Box::new(TriangleMesh::from_obj("data/cube.obj").unwrap());
+        // let object = Box::new(Morph::new(
+        //     TriangleMesh::from_obj("data/cube.obj").unwrap(),
+        //     TriangleMesh::from_obj("data/fixed_sphere.obj").unwrap(),
+        // ));
 
         let scene = Scene {
             camera,
@@ -137,7 +137,7 @@ impl MyEguiApp {
             }
         });
 
-        self.scene.object.update(T);
+        // self.scene.object.update(T);
         self.update_frame(ctx);
     }
 

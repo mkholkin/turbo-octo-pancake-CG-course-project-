@@ -10,10 +10,35 @@ pub struct TriangleMesh {
     vertices: Vec<Point>,
     vertices_world: Vec<Point>, // Вершины умноженные на матрицу преобразования
     normals: Vec<Vector4<f32>>,
+    normals_world: Vec<Vector4<f32>>,
     triangles: Vec<Triangle>,
     material: Material,
 
     model_matrix: Matrix4<f32>,
+    normals_need_update: bool,
+    vertices_need_update: bool,
+}
+
+impl TriangleMesh {
+    pub fn update_normals_world(&mut self) {
+        if self.normals_need_update {
+            self.normals_world = self.normals
+                .iter()
+                .map(|normal| (self.model_matrix * normal).normalize())
+                .collect();
+            self.normals_need_update = false;
+        }
+    }
+
+    pub fn update_vertices_world(&mut self) {
+        if self.vertices_need_update {
+            self.vertices_world = self.vertices
+                .iter()
+                .map(|v| Point3::from_homogeneous(self.model_matrix * v.to_homogeneous()).unwrap())
+                .collect();
+            self.vertices_need_update = false;
+        }
+    }
 }
 
 impl Model3D for TriangleMesh {
@@ -21,8 +46,11 @@ impl Model3D for TriangleMesh {
         &self.triangles
     }
 
-    fn normals(&self) -> &Vec<Vector4<f32>> {
-        &self.normals
+    fn normals(&self) -> Vec<Vector4<f32>> {
+        self.normals
+            .iter()
+            .map(|normal| (self.model_matrix * normal).normalize())
+            .collect()
     }
 
     fn vertices(&self) -> &Vec<Point> {
@@ -53,7 +81,6 @@ impl Model3D for TriangleMesh {
         &self.model_matrix
     }
 }
-
 impl Rotate for TriangleMesh {
     fn rotate(&mut self, axis_angle_radians: (f32, f32, f32)) {
         let rotation_matrix = Matrix4::new_rotation(Vector3::new(
@@ -63,15 +90,16 @@ impl Rotate for TriangleMesh {
         ));
         self.model_matrix = self.model_matrix * rotation_matrix;
 
-        for n in &mut self.normals {
-            *n = rotation_matrix * *n;
-        }
+        self.normals_need_update = true;
+        self.vertices_need_update = true; // Also need to update vertices!
     }
 }
 
 impl Scale for TriangleMesh {
     fn scale(&mut self, scaling: f32) {
         self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
+        self.normals_need_update = true;
+        self.vertices_need_update = true; // Scaling changes vertex positions too
     }
 }
 
@@ -81,9 +109,13 @@ impl TriangleMesh {
             vertices: Vec::new(),
             vertices_world: Vec::new(),
             normals: Vec::new(),
+            normals_world: Vec::new(),
             triangles: Vec::new(),
             material: Material::default(),
+
             model_matrix: Matrix4::identity(),
+            normals_need_update: false,
+            vertices_need_update: false,
         }
     }
 }
@@ -217,14 +249,14 @@ impl TriangleMesh {
             }
         }
 
-        mesh.vertices_world = mesh.vertices.clone();
-
         if !mesh.has_normals() {
             mesh.compute_normals();
         }
-        
+
         mesh.centerify();
-        
+        mesh.vertices_world = mesh.vertices.clone();
+        mesh.normals_world = mesh.normals.clone();
+
         Ok(mesh)
     }
 

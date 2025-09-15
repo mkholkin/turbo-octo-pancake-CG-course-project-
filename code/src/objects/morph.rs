@@ -2,46 +2,13 @@ use crate::objects::Point;
 use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale, Triangle};
 use crate::objects::triangle_mesh::TriangleMesh;
 use crate::utils::morphing::{
-    create_dcel_map, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel,
+    create_dcel_map, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel, find_normals
 };
-use crate::utils::triangles::barycentric;
 use image::Rgb;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
 pub type VertexInterpolation = Box<dyn Fn(f32) -> Point>;
 pub type NormalInterpolation = Box<dyn Fn(f32) -> Vector4<f32>>;
-
-fn find_normals(
-    relocated_vertices: &Vec<Point>,
-    triangles: &Vec<Triangle>,
-    mesh: &TriangleMesh,
-) -> Vec<Vector4<f32>> {
-    let mut normals = Vec::new();
-
-    for tri in triangles {
-        let center = Point::from(
-            (relocated_vertices[tri.0].coords
-                + relocated_vertices[tri.1].coords
-                + relocated_vertices[tri.2].coords)
-                / 3.,
-        );
-        for (i, tri) in mesh.triangles().iter().enumerate() {
-            let bary = barycentric(
-                &center,
-                &mesh.vertices()[tri.0],
-                &mesh.vertices()[tri.1],
-                &mesh.vertices()[tri.2],
-            );
-
-            if bary.iter().all(|&coord| coord > -1e-6) {
-                normals.push(mesh.normals()[i]);
-                break;
-            }
-        }
-    }
-
-    normals
-}
 
 pub struct Morph {
     vertices: Vec<Point>,
@@ -126,8 +93,8 @@ impl Model3D for Morph {
         &self.triangles
     }
 
-    fn normals(&self) -> &Vec<Vector4<f32>> {
-        &self.normals
+    fn normals(&self) -> Vec<Vector4<f32>> {
+        self.normals.clone()
     }
 
     fn vertices(&self) -> &Vec<Point> {

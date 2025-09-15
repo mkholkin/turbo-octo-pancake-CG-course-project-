@@ -6,7 +6,7 @@ use crate::objects::light::LightSource;
 use crate::objects::model3d::Material;
 use crate::scene::Scene;
 use image::{Rgb, RgbImage};
-use nalgebra::{Point3, Vector3, Vector4};
+use nalgebra::{Point3, Vector3};
 
 fn compute_reflection(
     light_direction: &Vector3<f32>,

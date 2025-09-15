@@ -394,3 +394,35 @@ pub fn relocate_vertices_on_mesh(vertices: &Vec<Vertex>, mesh: &TriangleMesh) ->
 
     relocated_vertices
 }
+
+pub fn find_normals(
+    relocated_vertices: &Vec<Vertex>,
+    triangles: &Vec<Triangle>,
+    mesh: &TriangleMesh,
+) -> Vec<Vector4<f32>> {
+    let mut normals = Vec::new();
+
+    for tri in triangles {
+        let center = Vertex::from(
+            (relocated_vertices[tri.0].coords
+                + relocated_vertices[tri.1].coords
+                + relocated_vertices[tri.2].coords)
+                / 3.,
+        );
+        for (i, tri) in mesh.triangles().iter().enumerate() {
+            let bary = barycentric(
+                &center,
+                &mesh.vertices()[tri.0],
+                &mesh.vertices()[tri.1],
+                &mesh.vertices()[tri.2],
+            );
+
+            if bary.iter().all(|&coord| coord > -1e-6) {
+                normals.push(mesh.normals()[i]);
+                break;
+            }
+        }
+    }
+
+    normals
+}

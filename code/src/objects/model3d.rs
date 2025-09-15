@@ -10,7 +10,7 @@ pub trait Model3D {
     // fn edges(&'a self) -> &'a Vec<>;
 
     /// List of normalized external normals
-    fn normals(&self) -> &Vec<Vector4<f32>>;
+    fn normals(&self) -> Vec<Vector4<f32>>;
 
     /// List of vertices
     fn vertices(&self) -> &Vec<Point>;
@@ -57,8 +57,8 @@ impl Default for Material {
     fn default() -> Self {
         Self {
             diffuse_reflectance_factor: 0.5,
-            specular_reflectance_factor: 0.05,
-            gloss: 1.,
+            specular_reflectance_factor: 0.02,
+            gloss: 3.,
             color: Rgb([208, 43, 43]),
             opacity: 0.1,
         }

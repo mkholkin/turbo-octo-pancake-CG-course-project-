@@ -1,4 +1,3 @@
-use crate::objects::model3d::Model3D;
 use crate::render::{Renderer, calculate_color};
 use crate::scene::Scene;
 use image::{Rgb, RgbImage};
@@ -100,16 +99,20 @@ impl ZBufferPerformer {
         }
     }
 }
-
 impl Renderer for ZBufferPerformer {
-    fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
+    fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &mut Scene) {
         let (width, height) = image.dimensions();
 
         self.reset(width, height);
         image.fill(70);
 
-        // TODO: organize this transformations
-        let mvp_matrix = scene.camera.camera_matrix * scene.object.model_matrix();
+        // Lazily update the model's vertex and normal data
+        let model = &mut scene.object;
+        model.update_vertices_world();
+        model.update_normals_world();
+
+        // Calculate the MVPV matrix once
+        let mvp_matrix = scene.camera.camera_matrix * model.model_matrix();
         let viewport_matrix = Matrix4::new(
             width as f32 / 2.,
             0.,
@@ -129,9 +132,10 @@ impl Renderer for ZBufferPerformer {
             1.,
         );
         let mvpv_matrix = viewport_matrix * mvp_matrix;
-        let camera_dim_v: Vec<Point3<f32>> = scene
-            .object
-            .vertices()
+
+        // Transform the world-space vertices once
+        let camera_dim_v: Vec<Point3<f32>> = model
+            .vertices_world()
             .iter()
             .map(|v| {
                 Point3::from_homogeneous(mvpv_matrix * v.to_homogeneous())
@@ -139,13 +143,13 @@ impl Renderer for ZBufferPerformer {
             })
             .collect();
 
-        for (i, tri) in scene.object.triangles().iter().enumerate() {
-            // TODO: replace Triangle with [usize; 3]
-            let tri_colros = [tri.0, tri.1, tri.2].map(|v_idx| {
+        // Use the pre-calculated normals and vertices_world
+        for (i, tri) in model.triangles().iter().enumerate() {
+            let tri_colors = [tri.0, tri.1, tri.2].map(|v_idx| {
                 calculate_color(
-                    &scene.object.material(),
-                    &scene.object.normals()[i].xyz(),
-                    &scene.object.vertices_world()[v_idx],
+                    &model.material(),
+                    &model.normals()[i].xyz(),
+                    &model.vertices_world()[v_idx],
                     &scene.light_source,
                     &scene.camera.pos,
                 )
@@ -158,8 +162,8 @@ impl Renderer for ZBufferPerformer {
                     camera_dim_v[tri.1],
                     camera_dim_v[tri.2],
                 ],
-                &tri_colros,
-            )
+                &tri_colors,
+            );
         }
     }
 }
