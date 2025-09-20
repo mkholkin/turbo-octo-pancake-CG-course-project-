@@ -13,7 +13,6 @@ use crate::config::{
     ROTATION_SENSITIVITY_FACTOR, SCALING_SENSITIVITY_FACTOR,
 };
 use crate::objects::light::LightSource;
-use crate::objects::morph::Morph;
 use crate::render::Renderer;
 use crate::render::z_buffer::ZBufferPerformer;
 use crate::scene::Scene;
@@ -24,6 +23,7 @@ use image::{Rgb, RgbImage};
 use imageproc::definitions::HasWhite;
 use nalgebra::{Point3, Vector3};
 use crate::objects::model3d::{Rotate, Scale};
+use crate::objects::morph::Morph;
 use crate::render::transparency::TransparencyPerformer;
 
 const IMG_WIDTH: u32 = 1000;
@@ -55,11 +55,17 @@ impl<'a> Default for MyEguiApp {
             intensity: 10.,
             color: Rgb::white(),
         };
-        let mut object = Box::new(TriangleMesh::from_obj("data/cube.obj").unwrap());
-        // let object = Box::new(Morph::new(
-        //     TriangleMesh::from_obj("data/cube.obj").unwrap(),
-        //     TriangleMesh::from_obj("data/fixed_sphere.obj").unwrap(),
-        // ));
+        // let mut object = Box::new(TriangleMesh::from_obj("data/Banana.obj").unwrap());
+
+        let a = TriangleMesh::from_obj("data/cube.obj").unwrap();
+        let mut b = TriangleMesh::from_obj("data/fixed_sphere.obj").unwrap();
+        b.material.color = Rgb([7, 149, 210]);
+        b.material.specular_reflectance_factor = 0.7;
+
+        let object = Box::new(Morph::new(
+            a,
+            b,
+        ));
 
         let scene = Scene {
             camera,
@@ -137,7 +143,7 @@ impl MyEguiApp {
             }
         });
 
-        // self.scene.object.update(T);
+        self.scene.object.update(T);
         self.update_frame(ctx);
     }
 

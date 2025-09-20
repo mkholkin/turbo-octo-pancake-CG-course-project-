@@ -1,3 +1,4 @@
+use crate::objects::model3d::Model3D;
 use crate::render::{Renderer, calculate_color};
 use crate::scene::Scene;
 use image::{Rgb, RgbImage};
@@ -100,16 +101,13 @@ impl ZBufferPerformer {
     }
 }
 impl Renderer for ZBufferPerformer {
-    fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &mut Scene) {
+    fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
         let (width, height) = image.dimensions();
 
         self.reset(width, height);
         image.fill(70);
 
-        // Lazily update the model's vertex and normal data
-        let model = &mut scene.object;
-        model.update_vertices_world();
-        model.update_normals_world();
+        let model = &scene.object;
 
         // Calculate the MVPV matrix once
         let mvp_matrix = scene.camera.camera_matrix * model.model_matrix();
@@ -135,7 +133,7 @@ impl Renderer for ZBufferPerformer {
 
         // Transform the world-space vertices once
         let camera_dim_v: Vec<Point3<f32>> = model
-            .vertices_world()
+            .vertices()
             .iter()
             .map(|v| {
                 Point3::from_homogeneous(mvpv_matrix * v.to_homogeneous())
@@ -143,7 +141,6 @@ impl Renderer for ZBufferPerformer {
             })
             .collect();
 
-        // Use the pre-calculated normals and vertices_world
         for (i, tri) in model.triangles().iter().enumerate() {
             let tri_colors = [tri.0, tri.1, tri.2].map(|v_idx| {
                 calculate_color(

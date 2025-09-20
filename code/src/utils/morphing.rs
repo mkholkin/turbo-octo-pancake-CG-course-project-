@@ -240,12 +240,6 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
     // будет принимать эти две коллекции и строить финальную структуру DCEL, связывая
     // вершины, полуребра и грани.
     // TODO: возможно передавать слайсом или как-то еще чтобы не копировать лишний раз
-
-    // println!("{:?}\n", all_segments);
-
-    println!("Создание DCEL::new");
-    println!("vertices = np.array({:?})", all_vertices);
-    println!("connections = np.array({:?})", all_segments);
     DCEL::new(all_vertices, all_segments.into_iter().collect())
 }
 
@@ -264,11 +258,6 @@ fn triangulate_face(face_vertices: &Vec<&Vertex>, v_idx: &Vec<usize>) -> Vec<usi
             break;
         }
     }
-
-    if !(normal.norm_squared() > EPS) {
-        println!("{:?},", v_idx);
-    }
-
     // FIXME: Possible bug here
     assert!(normal.norm_squared() > EPS * EPS);
     normal.normalize_mut();
@@ -378,17 +367,21 @@ fn find_enclosing_triangle(p: &Vertex, mesh: &TriangleMesh) -> (usize, Vector3<f
 }
 
 // Расположить рассчитать реальные координаты точке на сетке объекта
-pub fn relocate_vertices_on_mesh(vertices: &Vec<Vertex>, mesh: &TriangleMesh) -> Vec<Vertex> {
+pub fn relocate_vertices_on_mesh(
+    parametrized_vertices: &Vec<Vertex>,
+    parametrized_mesh: &TriangleMesh,
+    real_vertices: &Vec<Vertex>,
+) -> Vec<Vertex> {
     let mut relocated_vertices = Vec::new();
 
-    for v in vertices {
-        let (tri_idx, bary) = find_enclosing_triangle(&v, mesh);
+    for v in parametrized_vertices {
+        let (tri_idx, bary) = find_enclosing_triangle(&v, parametrized_mesh);
+        let tri = parametrized_mesh.triangles()[tri_idx];
 
-        let tri = mesh.triangles()[tri_idx];
         relocated_vertices.push(Vertex::from(
-            bary.x * mesh.vertices()[tri.0].coords
-                + bary.y * mesh.vertices()[tri.1].coords
-                + bary.z * mesh.vertices()[tri.2].coords,
+            bary.x * real_vertices[tri.0].coords
+                + bary.y * real_vertices[tri.1].coords
+                + bary.z * real_vertices[tri.2].coords,
         ));
     }
 
@@ -396,32 +389,21 @@ pub fn relocate_vertices_on_mesh(vertices: &Vec<Vertex>, mesh: &TriangleMesh) ->
 }
 
 pub fn find_normals(
-    relocated_vertices: &Vec<Vertex>,
+    parametrized_vertices: &Vec<Vertex>,
     triangles: &Vec<Triangle>,
-    mesh: &TriangleMesh,
+    parametrized_mesh: &TriangleMesh,
 ) -> Vec<Vector4<f32>> {
     let mut normals = Vec::new();
-
     for tri in triangles {
-        let center = Vertex::from(
-            (relocated_vertices[tri.0].coords
-                + relocated_vertices[tri.1].coords
-                + relocated_vertices[tri.2].coords)
+        let center = Point3::from(
+            (parametrized_vertices[tri.0].coords
+                + parametrized_vertices[tri.1].coords
+                + parametrized_vertices[tri.2].coords)
                 / 3.,
         );
-        for (i, tri) in mesh.triangles().iter().enumerate() {
-            let bary = barycentric(
-                &center,
-                &mesh.vertices()[tri.0],
-                &mesh.vertices()[tri.1],
-                &mesh.vertices()[tri.2],
-            );
 
-            if bary.iter().all(|&coord| coord > -1e-6) {
-                normals.push(mesh.normals()[i]);
-                break;
-            }
-        }
+        let (tri_idx, _) = find_enclosing_triangle(&center, parametrized_mesh);
+        normals.push(parametrized_mesh.normals()[tri_idx]);
     }
 
     normals

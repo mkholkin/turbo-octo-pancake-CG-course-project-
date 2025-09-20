@@ -1,49 +1,57 @@
 use crate::objects::Point;
 use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale, Triangle};
 use crate::objects::triangle_mesh::TriangleMesh;
+use crate::utils::math::lerp;
 use crate::utils::morphing::{
-    create_dcel_map, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel, find_normals
+    create_dcel_map, find_normals, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel,
 };
-use image::Rgb;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
-pub type VertexInterpolation = Box<dyn Fn(f32) -> Point>;
-pub type NormalInterpolation = Box<dyn Fn(f32) -> Vector4<f32>>;
+pub type Lerp<T> = Box<dyn Fn(f32) -> T>;
+pub type VertexInterpolation = Lerp<Point>;
+pub type NormalInterpolation = Lerp<Vector4<f32>>;
+pub type MaterialInterpolation = Lerp<Material>;
 
 pub struct Morph {
     vertices: Vec<Point>,
+    vertices_world: Vec<Point>,
     triangles: Vec<Triangle>,
     normals: Vec<Vector4<f32>>,
+    normals_world: Vec<Vector4<f32>>,
+    material: Material,
+
     vertex_interpolations: Vec<VertexInterpolation>,
     normals_interpolations: Vec<NormalInterpolation>,
+    material_interpolation: MaterialInterpolation,
 
     model_matrix: Matrix4<f32>,
 }
 
 impl Morph {
-    pub fn new(mut obj_a: TriangleMesh, mut obj_b: TriangleMesh) -> Self {
+    pub fn new(obj_a: TriangleMesh, obj_b: TriangleMesh) -> Self {
         // 1. Параметризация исходных сеток
-        parametrize_mesh(&mut obj_a);
-        parametrize_mesh(&mut obj_b);
+        let mut parametrized_mesh_a = obj_a.clone();
+        parametrize_mesh(&mut parametrized_mesh_a);
+
+        let mut parametrized_mesh_b = obj_b.clone();
+        parametrize_mesh(&mut parametrized_mesh_b);
 
         //2. Пересечение исходной и целевой сеток
-        println!("Построение DCEL MAP");
-        let dcel = create_dcel_map(&obj_a, &obj_b);
+        let dcel = create_dcel_map(&parametrized_mesh_a, &parametrized_mesh_b);
 
         //3. Триангуляция граней пересеченной сетки
-        println!("Триангуляция");
         let triangles = triangulate_dcel(&dcel);
 
         //4. Находим положения точек на исходной и целевой сетках
-        println!("Барицентрические поиски");
-        let src_vertices = relocate_vertices_on_mesh(&dcel.vertices, &obj_a);
-        let dst_vertices = relocate_vertices_on_mesh(&dcel.vertices, &obj_b);
+        let src_vertices =
+            relocate_vertices_on_mesh(&dcel.vertices, &parametrized_mesh_a, obj_a.vertices_world());
+        let dst_vertices =
+            relocate_vertices_on_mesh(&dcel.vertices, &parametrized_mesh_b, obj_b.vertices_world());
 
-        let src_normals = find_normals(&src_vertices, &triangles, &obj_a);
-        let dst_normals = find_normals(&dst_vertices, &triangles, &obj_b);
+        let src_normals = find_normals(&dcel.vertices, &triangles, &parametrized_mesh_a);
+        let dst_normals = find_normals(&dcel.vertices, &triangles, &parametrized_mesh_b);
 
-            //5. Строим интерполяции
-            println!("Построение интерполяций");
+        //5. Строим интерполяции
         let vertex_interpolations: Vec<VertexInterpolation> = src_vertices
             .into_iter()
             .zip(dst_vertices.into_iter())
@@ -56,20 +64,38 @@ impl Morph {
             .into_iter()
             .zip(dst_normals.into_iter())
             .map(|(src_n, dst_n)| -> NormalInterpolation {
-                Box::new(move |t: f32| Vector4::from((1. - t) * src_n + t * dst_n))
+                Box::new(move |t: f32| lerp(src_n, dst_n, t))
             })
             .collect();
 
-        //6. Строим вершины и нормали при t=0
-        let vertices = vertex_interpolations.iter().map(|lerp| lerp(0.)).collect();
-        let normals = normals_interpolations.iter().map(|lerp| lerp(0.)).collect();
+        let src_material = obj_a.material().clone();
+        let dst_material = obj_b.material().clone();
+        let material_interpolation: MaterialInterpolation =
+            Box::new(move |t: f32| Material::lerp(&src_material, &dst_material, t));
+
+        // 6. Строим интерполяции при t=0
+        // Строим вершины
+        let vertices: Vec<Point> = vertex_interpolations.iter().map(|lerp| lerp(0.)).collect();
+        let vertices_world = vertices.clone();
+
+        // Строим нормали
+        let normals: Vec<Vector4<f32>> =
+            normals_interpolations.iter().map(|lerp| lerp(0.)).collect();
+        let normals_world = normals.clone();
+
+        // Строим материал
+        let material = material_interpolation(0.);
 
         Morph {
             vertices,
+            vertices_world,
             triangles,
             normals,
+            normals_world,
+            material,
             vertex_interpolations,
             normals_interpolations,
+            material_interpolation,
             model_matrix: Matrix4::identity(),
         }
     }
@@ -82,8 +108,28 @@ impl Morph {
 
         // Рассчитать нормали
         for i in 0..self.normals.len() {
-            self.normals[i] = self.model_matrix * self.normals_interpolations[i](t);
-            self.normals[i].normalize_mut();
+            self.normals[i] = self.normals_interpolations[i](t);
+            self.normals[i];
+        }
+
+        self.update_vertices_world();
+        self.update_normals_world();
+
+        // Рассчитать материал
+        self.material = (self.material_interpolation)(t);
+    }
+}
+
+impl Morph {
+    fn update_vertices_world(&mut self) {
+        for (vw, v) in self.vertices_world.iter_mut().zip(self.vertices.iter()) {
+            *vw = Point3::from_homogeneous(self.model_matrix * v.to_homogeneous()).unwrap();
+        }
+    }
+
+    fn update_normals_world(&mut self) {
+        for (nw, n) in self.normals_world.iter_mut().zip(self.normals.iter()) {
+            *nw = self.model_matrix * n;
         }
     }
 }
@@ -93,32 +139,20 @@ impl Model3D for Morph {
         &self.triangles
     }
 
-    fn normals(&self) -> Vec<Vector4<f32>> {
-        self.normals.clone()
+    fn normals(&self) -> &Vec<Vector4<f32>> {
+        &self.normals_world
     }
 
     fn vertices(&self) -> &Vec<Point> {
         &self.vertices
     }
 
-    fn vertices_world(&self) -> Vec<Point> {
-        // todo: iter
-        self.vertices
-            .iter()
-            .map(|v| Point3::from_homogeneous(self.model_matrix * v.to_homogeneous()).unwrap())
-            .collect()
+    fn vertices_world(&self) -> &Vec<Point> {
+        &self.vertices_world
     }
 
     fn material(&self) -> &Material {
-        // TODO: Нормальный морфинг материала
-        static MATERIAL: Material = Material {
-            diffuse_reflectance_factor: 0.5,
-            specular_reflectance_factor: 0.05,
-            gloss: 1.,
-            color: Rgb([208, 43, 43]),
-            opacity: 0.1,
-        };
-        &MATERIAL
+        &self.material
     }
 
     fn has_normals(&self) -> bool {
@@ -143,15 +177,15 @@ impl Rotate for Morph {
         ));
         self.model_matrix = self.model_matrix * rotation_matrix;
 
-        for n in &mut self.normals {
-            *n = rotation_matrix * *n;
-        }
+        self.update_vertices_world();
+        self.update_normals_world();
     }
 }
 
 impl Scale for Morph {
     fn scale(&mut self, scaling: f32) {
         self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
+        self.update_vertices_world()
     }
 }
 

@@ -1,11 +1,10 @@
+use crate::objects::model3d::Model3D;
 use crate::render::Renderer;
 use crate::render::calculate_color;
 use crate::scene::Scene;
 use crate::utils::triangles::barycentric;
 use image::{Rgb, RgbImage};
 use nalgebra::{Matrix4, Point3};
-use crate::objects::model3d::Model3D;
-
 pub struct TransparencyPerformer {}
 
 impl TransparencyPerformer {

@@ -1,6 +1,8 @@
 use crate::objects::Point;
 use image::Rgb;
 use nalgebra::{Matrix4, Vector4};
+use std::ops::Mul;
+use crate::utils::math::lerp;
 
 pub type Triangle = (usize, usize, usize);
 
@@ -10,13 +12,13 @@ pub trait Model3D {
     // fn edges(&'a self) -> &'a Vec<>;
 
     /// List of normalized external normals
-    fn normals(&self) -> Vec<Vector4<f32>>;
+    fn normals(&self) -> &Vec<Vector4<f32>>;
 
     /// List of vertices
     fn vertices(&self) -> &Vec<Point>;
 
     /// List of vertices multiplied by transformation matrix
-    fn vertices_world(&self) -> Vec<Point>;
+    fn vertices_world(&self) -> &Vec<Point>;
 
     /// Return material
     fn material(&self) -> &Material;
@@ -45,6 +47,7 @@ pub trait Scale {
 
 pub trait InteractiveModel: Model3D + Rotate + Scale {}
 
+#[derive(Clone)]
 pub struct Material {
     pub diffuse_reflectance_factor: f32,
     pub specular_reflectance_factor: f32,
@@ -56,11 +59,33 @@ pub struct Material {
 impl Default for Material {
     fn default() -> Self {
         Self {
-            diffuse_reflectance_factor: 0.5,
+            diffuse_reflectance_factor: 0.45,
             specular_reflectance_factor: 0.02,
             gloss: 3.,
             color: Rgb([208, 43, 43]),
             opacity: 0.1,
+        }
+    }
+}
+
+impl Material {
+    pub fn lerp(a: &Material, b: &Material, t: f32) -> Material {
+        let diffuse_reflectance_factor = lerp(a.diffuse_reflectance_factor, b.diffuse_reflectance_factor, t);
+        let specular_reflectance_factor = lerp(a.specular_reflectance_factor, b.specular_reflectance_factor, t);
+        let gloss = lerp(a.gloss, b.gloss, t);
+        let opacity = lerp(a.opacity, b.opacity, t);
+
+        let r = lerp(a.color[0] as f32, b.color[0] as f32, t).round() as u8;
+        let g = lerp(a.color[1] as f32, b.color[1] as f32, t).round() as u8;
+        let b = lerp(a.color[2] as f32, b.color[2] as f32, t).round() as u8;
+        let color = Rgb([r, g, b]);
+
+        Material {
+            diffuse_reflectance_factor,
+            specular_reflectance_factor,
+            gloss,
+            color,
+            opacity,
         }
     }
 }

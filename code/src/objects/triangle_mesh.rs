@@ -6,13 +6,14 @@ use std::error::Error;
 use std::fs;
 use std::io::{BufRead, BufReader};
 
+#[derive(Clone, Default)]
 pub struct TriangleMesh {
     vertices: Vec<Point>,
     vertices_world: Vec<Point>, // Вершины умноженные на матрицу преобразования
     normals: Vec<Vector4<f32>>,
-    normals_world: Vec<Vector4<f32>>,
+    normals_world: Vec<Vector4<f32>>, // Нормали умноженные на матрицу преобразования
     triangles: Vec<Triangle>,
-    material: Material,
+    pub material: Material,
 
     model_matrix: Matrix4<f32>,
     normals_need_update: bool,
@@ -22,20 +23,20 @@ pub struct TriangleMesh {
 impl TriangleMesh {
     pub fn update_normals_world(&mut self) {
         if self.normals_need_update {
-            self.normals_world = self.normals
-                .iter()
-                .map(|normal| (self.model_matrix * normal).normalize())
-                .collect();
+            for i in 0..self.normals.len() {
+                self.normals_world[i] = (self.model_matrix * self.normals[i]).normalize();
+            }
             self.normals_need_update = false;
         }
     }
 
     pub fn update_vertices_world(&mut self) {
         if self.vertices_need_update {
-            self.vertices_world = self.vertices
-                .iter()
-                .map(|v| Point3::from_homogeneous(self.model_matrix * v.to_homogeneous()).unwrap())
-                .collect();
+            for i in 0..self.vertices.len() {
+                self.vertices_world[i] =
+                    Point3::from_homogeneous(self.model_matrix * self.vertices[i].to_homogeneous())
+                        .unwrap()
+            }
             self.vertices_need_update = false;
         }
     }
@@ -46,23 +47,16 @@ impl Model3D for TriangleMesh {
         &self.triangles
     }
 
-    fn normals(&self) -> Vec<Vector4<f32>> {
-        self.normals
-            .iter()
-            .map(|normal| (self.model_matrix * normal).normalize())
-            .collect()
+    fn normals(&self) -> &Vec<Vector4<f32>> {
+        &self.normals_world
     }
 
     fn vertices(&self) -> &Vec<Point> {
         &self.vertices
     }
 
-    fn vertices_world(&self) -> Vec<Point> {
-        // TODO: iter
-        self.vertices
-            .iter()
-            .map(|v| Point3::from_homogeneous(self.model_matrix * v.to_homogeneous()).unwrap())
-            .collect()
+    fn vertices_world(&self) -> &Vec<Point> {
+        &self.vertices_world
     }
 
     fn material(&self) -> &Material {
@@ -81,6 +75,7 @@ impl Model3D for TriangleMesh {
         &self.model_matrix
     }
 }
+
 impl Rotate for TriangleMesh {
     fn rotate(&mut self, axis_angle_radians: (f32, f32, f32)) {
         let rotation_matrix = Matrix4::new_rotation(Vector3::new(
@@ -91,32 +86,17 @@ impl Rotate for TriangleMesh {
         self.model_matrix = self.model_matrix * rotation_matrix;
 
         self.normals_need_update = true;
+        self.update_normals_world();
         self.vertices_need_update = true; // Also need to update vertices!
+        self.update_vertices_world();
     }
 }
 
 impl Scale for TriangleMesh {
     fn scale(&mut self, scaling: f32) {
         self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
-        self.normals_need_update = true;
-        self.vertices_need_update = true; // Scaling changes vertex positions too
-    }
-}
-
-impl TriangleMesh {
-    pub fn new() -> Self {
-        TriangleMesh {
-            vertices: Vec::new(),
-            vertices_world: Vec::new(),
-            normals: Vec::new(),
-            normals_world: Vec::new(),
-            triangles: Vec::new(),
-            material: Material::default(),
-
-            model_matrix: Matrix4::identity(),
-            normals_need_update: false,
-            vertices_need_update: false,
-        }
+        self.vertices_need_update = true;
+        self.update_vertices_world()
     }
 }
 
@@ -179,7 +159,7 @@ impl TriangleMesh {
         let file = fs::File::open(path)?;
         let reader = BufReader::new(file);
 
-        let mut mesh = TriangleMesh::new();
+        let mut mesh = TriangleMesh::default();
         let mut temp_normals: Vec<Vector4<f32>> = Vec::new();
 
         for (i, line) in reader.lines().enumerate() {

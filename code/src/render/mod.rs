@@ -23,6 +23,8 @@ fn calculate_color(
     light_source: &LightSource,
     eye_pos: &Point3<f32>,
 ) -> Rgb<u8> {
+    // let normal = Vector3::new(0., 0., 1.);
+    // let surface_point = Point3::new(0., 0., 0.);
     let mut light_direction = light_source.pos - surface_point;
     let dist = light_direction.norm();
 
