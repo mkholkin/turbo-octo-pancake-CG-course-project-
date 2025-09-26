@@ -1,23 +1,24 @@
+use crate::config::RELAXATION_ROUNDS_LIMIT;
 use crate::objects::model3d::{Model3D, Triangle};
 use crate::objects::triangle_mesh::TriangleMesh;
 use crate::utils::dcel::{DCEL, Vertex};
 use crate::utils::triangles::barycentric;
 use delaunator::{Point, triangulate};
-use nalgebra::{Point3, Vector3, Vector4};
+use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 
-const EPS: f32 = 1e-6;
+const EPS: f64 = 1e-6;
 
 type Segment = [usize; 2];
 
 /// Вычисляет площадь треугольника, заданного тремя вершинами.
-fn triangle_area(v1: &Point3<f32>, v2: &Point3<f32>, v3: &Point3<f32>) -> f32 {
+fn triangle_area(v1: &Point3<f64>, v2: &Point3<f64>, v3: &Point3<f64>) -> f64 {
     let cross_product = (v2 - v1).cross(&(v3 - v1));
     0.5 * cross_product.norm()
 }
 
 /// Вычисляет центр масс полигональной сетки.
-pub fn center_of_mass(mesh: &TriangleMesh) -> Vector3<f32> {
+pub fn center_of_mass(mesh: &TriangleMesh) -> Vector3<f64> {
     // TODO: работа с вершинами в координатах мира (после трансформаций)
 
     let mut total_area = 0.0;
@@ -42,17 +43,124 @@ pub fn center_of_mass(mesh: &TriangleMesh) -> Vector3<f32> {
     }
 }
 
+fn collect_neighbors(mesh: &TriangleMesh) -> Vec<HashSet<usize>> {
+    let mut neighbors = vec![HashSet::new(); mesh.vertices().len()];
+
+    for tri in mesh.triangles() {
+        neighbors[tri.0].extend(&[tri.1, tri.2]);
+        neighbors[tri.1].extend(&[tri.0, tri.2]);
+        neighbors[tri.2].extend(&[tri.0, tri.1]);
+    }
+
+    neighbors
+}
+
+fn get_orientations(vertices: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Vec<f64> {
+    triangles
+        .iter()
+        .map(|tri| {
+            let v0 = vertices[tri.0];
+            let v1 = vertices[tri.1];
+            let v2 = vertices[tri.2];
+
+            v0.coords.cross(&(v1.coords)).dot(&(v2.coords)).signum()
+        })
+        .collect()
+}
+
+fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<f64>) {
+    let epsilon_threshold = 1e-4;
+
+    let neighbors = collect_neighbors(parametrized_mesh);
+
+    // Релаксация сетки
+    let mut round_no: usize = 0;
+    let mut orientations = get_orientations(
+        parametrized_mesh.vertices_world(),
+        parametrized_mesh.triangles(),
+    );
+    let mut orientations_established = original_orientations.iter().eq(orientations.iter());
+    let mut epsilon_reached = false;
+
+    // TODO: PIZDEC
+    while (!(epsilon_reached)) && round_no < RELAXATION_ROUNDS_LIMIT {
+        // 1. Сохраняем положение вершин перед релаксацией
+        let prev_vertices = parametrized_mesh.vertices_world().clone();
+
+        // 2. Выполняем один раунд релаксации
+        {
+            let vertices = parametrized_mesh.vertices_world_mut();
+
+            for i in 0..vertices.len() {
+                let new_pos = neighbors[i]
+                    .iter()
+                    .map(|neighbor_idx| prev_vertices[*neighbor_idx].coords)
+                    .sum::<Vector3<f64>>()
+                    .normalize();
+                vertices[i] = Vertex::from(new_pos);
+            }
+
+            epsilon_reached = prev_vertices
+                .iter()
+                .zip(vertices.iter())
+                .all(|(prev, curr)| (prev - curr).norm() < epsilon_threshold);
+
+            // Центрирование сферы для избежания коллапса вершин
+            let mean: Vector3<f64> =
+                vertices.iter().map(|v| v.coords).sum::<Vector3<f64>>() / vertices.len() as f64;
+            vertices.iter_mut().for_each(|v| *v -= mean);
+        }
+
+        // 3. Проверяем условия остановки
+        let curr_vertices = parametrized_mesh.vertices_world();
+        orientations = get_orientations(curr_vertices, parametrized_mesh.triangles());
+
+        // Условие 1: Ориентации граней совпадают с оригинальными (нет вывернутых граней)
+        orientations_established = original_orientations.iter().eq(orientations.iter());
+
+        // Условие 2: Достигнут эпсилон-порог (вершины почти не сдвинулись)
+        // epsilon_reached = prev_vertices
+        //     .iter()
+        //     .zip(curr_vertices.iter())
+        //     .all(|(prev, curr)| (prev - curr).norm() < epsilon_threshold);
+
+        // Центрирование сферы для избежания коллапса вершин
+        // let mean: Vector3<f64> = parametrized_mesh
+        //     .vertices_world()
+        //     .iter()
+        //     .map(|v| v.coords)
+        //     .sum::<Vector3<f64>>()
+        //     / parametrized_mesh.vertices().len() as f64;
+        // parametrized_mesh
+        //     .vertices_world_mut()
+        //     .iter_mut()
+        //     .for_each(|v| *v -= mean);
+
+        round_no += 1;
+    }
+
+    println!("{}", round_no);
+}
+
 pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
+    // TODO: нужно искать не центр масс, а внутреннюю точку
     let center = center_of_mass(mesh);
 
-    for v in mesh.vertices_mut() {
+    let original_orientations = get_orientations(&mesh.vertices_world(), &mesh.triangles());
+
+    for v in mesh.vertices_world_mut() {
         *v = Point3::from((v.coords - center).normalize());
     }
+
+    relax_mesh(mesh, &original_orientations);
+
+    mesh.vertices = mesh.vertices_world().clone();
+    mesh.model_matrix = Matrix4::identity();
 }
 
 /// Checks if a point `p` is on the arc between points `start` and `end`.
 /// All points are expected to be on the unit sphere.
-fn is_on_arc(p: &Point3<f32>, start: &Point3<f32>, end: &Point3<f32>) -> bool {
+fn is_on_arc(p: &Point3<f64>, start: &Point3<f64>, end: &Point3<f64>) -> bool {
     let p_vec = p.coords;
     let start_vec = start.coords;
     let end_vec = end.coords;
@@ -80,8 +188,8 @@ fn is_on_arc(p: &Point3<f32>, start: &Point3<f32>, end: &Point3<f32>) -> bool {
 }
 
 /// Finds the intersection point of two great-circle arcs on a unit sphere.
-/// Returns `Some(Point3<f32>)` if a unique intersection is found, otherwise `None`.
-fn intersect_arcs(arc_1: [&Point3<f32>; 2], arc_2: [&Point3<f32>; 2]) -> Option<Point3<f32>> {
+/// Returns `Some(Point3<f64>)` if a unique intersection is found, otherwise `None`.
+fn intersect_arcs(arc_1: [&Point3<f64>; 2], arc_2: [&Point3<f64>; 2]) -> Option<Point3<f64>> {
     // 1. Calculate the normals of the great circles.
     // The normal is the cross product of the arc's endpoints.
     let normal_1 = arc_1[0].coords.cross(&arc_1[1].coords);
@@ -114,7 +222,7 @@ fn intersect_arcs(arc_1: [&Point3<f32>; 2], arc_2: [&Point3<f32>; 2]) -> Option<
     None
 }
 
-fn get_mesh_segments(mesh: &TriangleMesh) -> impl Iterator<Item = Segment> {
+fn get_mesh_segments(mesh: &TriangleMesh) -> HashSet<Segment> {
     mesh.triangles()
         .iter()
         .flat_map(|&tri| {
@@ -129,12 +237,15 @@ fn get_mesh_segments(mesh: &TriangleMesh) -> impl Iterator<Item = Segment> {
 
             [s1, s2, s3]
         })
-        .into_iter()
+        .collect()
 }
 
-fn find_or_add_vertex(vertices: &mut Vec<Point3<f32>>, point: Point3<f32>) -> usize {
+fn find_or_add_vertex(vertices: &mut Vec<Point3<f64>>, point: Point3<f64>) -> usize {
     for (i, v) in vertices.iter().enumerate() {
-        if (v.coords - point.coords).norm_squared() < EPS {
+        if (v.coords - point.coords)
+            .iter()
+            .all(|coord| *coord > EPS && *coord < EPS)
+        {
             return i;
         }
     }
@@ -147,17 +258,17 @@ fn find_or_add_vertex(vertices: &mut Vec<Point3<f32>>, point: Point3<f32>) -> us
 /// Функция сосредоточена на определении уникальных сегментов и вершин.
 pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
     // Объединяем все вершины из обеих сеток в один изменяемый список.
-    let mut all_vertices = mesh_a.vertices().clone();
-    all_vertices.extend(mesh_b.vertices().clone());
+    let mut all_vertices = mesh_a.vertices_world().clone();
+    all_vertices.extend(mesh_b.vertices_world().clone());
 
     // Карта для хранения всех вершин, которые лежат на каждом отрезке.
     // Ключ — это канонический отрезок ([usize; 2]), а значение — это набор индексов вершин.
     let mut segment_map: HashMap<Segment, HashSet<usize>> = HashMap::new();
 
-    // todo: сделать хешсеты из сегментов
-    let segments_a: Vec<Segment> = get_mesh_segments(&mesh_a).collect();
+    let segments_a = Vec::from_iter(get_mesh_segments(&mesh_a).into_iter());
     // Корректируем индексы, чтобы они соответствовали объединенному списку вершин.
     let segments_b: Vec<Segment> = get_mesh_segments(&mesh_b)
+        .into_iter()
         .map(|mut s| {
             let offset = mesh_a.vertices().len();
             s[0] += offset;
@@ -166,17 +277,14 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
         })
         .collect();
 
-    // Add all segments from mesh_a
-    for s in get_mesh_segments(&mesh_a) {
-        segment_map.entry(s).or_insert_with(HashSet::new);
+    // Добавляем все отрезки из первой сетки в карту
+    for s in &segments_a {
+        segment_map.entry(*s).or_insert_with(HashSet::new);
     }
 
-    // Add all segments from mesh_b with offset
-    for mut s in get_mesh_segments(&mesh_b) {
-        let offset = mesh_a.vertices().len();
-        s[0] += offset;
-        s[1] += offset;
-        segment_map.entry(s).or_insert_with(HashSet::new);
+    // Добавляем все отрезки из второй сетки в карту
+    for s in &segments_b {
+        segment_map.entry(*s).or_insert_with(HashSet::new);
     }
 
     // Находим точки пересечения между всеми дугами на единичной сфере.
@@ -234,17 +342,12 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
         }
     }
 
-    // 7. Это заглушка для финального шага.
-    // `all_vertices` и `all_segments` теперь содержат всю необходимую информацию
-    // для построения полностью соединенной DCEL. Функция `build_dcel` (здесь не реализована)
-    // будет принимать эти две коллекции и строить финальную структуру DCEL, связывая
-    // вершины, полуребра и грани.
     // TODO: возможно передавать слайсом или как-то еще чтобы не копировать лишний раз
     DCEL::new(all_vertices, all_segments.into_iter().collect())
 }
 
 /// Триангулирует плоскую грань многогранника с использованием триангуляции Делоне.
-fn triangulate_face(face_vertices: &Vec<&Vertex>, v_idx: &Vec<usize>) -> Vec<usize> {
+fn triangulate_face(face_vertices: &Vec<&Vertex>) -> Vec<usize> {
     assert!(face_vertices.len() >= 3);
 
     // 1. Находим нормаль к грани многогранника
@@ -254,12 +357,19 @@ fn triangulate_face(face_vertices: &Vec<&Vertex>, v_idx: &Vec<usize>) -> Vec<usi
     let mut normal = Vector3::default();
     for i in 2..face_vertices.len() {
         normal = v1.cross(&(face_vertices[i] - face_vertices[0]));
-        if normal.norm_squared() > EPS * EPS {
+        if normal.norm() > 0. {
             break;
         }
     }
+
+    if !(normal.norm() > 0.) {
+        println!("v1 = {}", v1);
+        println!("v2 = {}", face_vertices[2] - face_vertices[0]);
+        println!("normal.norm() = {}", normal.norm());
+        let a = 1;
+    }
     // FIXME: Possible bug here
-    assert!(normal.norm_squared() > EPS * EPS);
+    assert!(normal.norm() > 0.);
     normal.normalize_mut();
 
     // 2. Создаем ортонормированный базис грани [u, v].
@@ -272,7 +382,7 @@ fn triangulate_face(face_vertices: &Vec<&Vertex>, v_idx: &Vec<usize>) -> Vec<usi
 
     // Проецируем вектор на плоскость грани
     let mut u_vec = random_vec - random_vec.dot(&normal) * normal;
-    assert!(u_vec.norm_squared() > EPS);
+    assert!(u_vec.norm_squared() > f64::EPSILON);
     u_vec.normalize_mut();
 
     // Второй вектор базиса
@@ -280,12 +390,11 @@ fn triangulate_face(face_vertices: &Vec<&Vertex>, v_idx: &Vec<usize>) -> Vec<usi
 
     // 3. Проецируем 3D-вершины на 2D-плоскость, используя новый базис
     // Находим центр масс грани
-    let face_center: Vector3<f32> = face_vertices.iter().map(|p| p.coords).sum();
-    let face_center = face_center / face_vertices.len() as f32;
+    let face_center: Vector3<f64> = face_vertices.iter().map(|p| p.coords).sum();
+    let face_center = face_center / face_vertices.len() as f64;
 
     // Проецируем точки
     let mut projected_points_2d = Vec::new();
-    // TODO: возможно неправильное проецирование
     for v in face_vertices {
         let vec_from_center = v.coords - face_center;
         let point = Point {
@@ -309,7 +418,7 @@ pub fn triangulate_dcel(dcel: &DCEL) -> Vec<Triangle> {
         let vertex_indices = dcel.get_face_vertices(face_idx);
         let face_vertices_refs: Vec<&Vertex> =
             vertex_indices.iter().map(|&i| &dcel.vertices[i]).collect();
-        let local_triangles = triangulate_face(&face_vertices_refs, &vertex_indices);
+        let local_triangles = triangulate_face(&face_vertices_refs);
         let global_triangles: Vec<Triangle> = local_triangles
             .chunks(3)
             .map(|chunk| {
@@ -329,8 +438,8 @@ pub fn triangulate_dcel(dcel: &DCEL) -> Vec<Triangle> {
 
 // Найти треугольник на сетке, которому принадлежит точка.
 // Возвращает индекс треугольника и барицентрические координаты точки в этом треугольнике.
-fn find_enclosing_triangle(p: &Vertex, mesh: &TriangleMesh) -> (usize, Vector3<f32>) {
-    let mesh_vertices = mesh.vertices();
+fn find_enclosing_triangle(p: &Vertex, mesh: &TriangleMesh) -> (usize, Vector3<f64>) {
+    let mesh_vertices = mesh.vertices_world();
 
     for (i, tri) in mesh.triangles().iter().enumerate() {
         let v0 = &mesh_vertices[tri.0];
@@ -338,10 +447,10 @@ fn find_enclosing_triangle(p: &Vertex, mesh: &TriangleMesh) -> (usize, Vector3<f
         let v2 = &mesh_vertices[tri.2];
 
         // 1. Находим нормаль к плоскости треугольника, направленную от центра сферы
-        let mut normal = (v1 - v0).cross(&(v2 - v0)).normalize();
+        let mut normal = (v1 - v0).cross(&(v2 - v1)).normalize();
 
         // Разворачиваем нормаль, если она направленна в центр
-        if normal.dot(&v0.coords) < 0. {
+        if normal.dot(&v0.coords) < 0.0 {
             normal = -normal;
         }
 
@@ -353,12 +462,20 @@ fn find_enclosing_triangle(p: &Vertex, mesh: &TriangleMesh) -> (usize, Vector3<f
             continue;
         }
 
-        let projected_point = p * (normal.dot(&v0.coords) / t);
+        let projected_point = if t < f64::EPSILON {
+            *p
+        } else {
+            p * (normal.dot(&v0.coords) / t)
+        };
+
+        if t < f64::EPSILON {
+            println!("{}", projected_point);
+        }
 
         // 3. Определяем принадлежность точки треугольнику по барицентрическим координатам
         let bary = barycentric(&projected_point, &v0, &v1, &v2);
 
-        if bary.iter().all(|&coord| coord > -EPS) {
+        if bary.iter().all(|&coord| coord > -1e-12) {
             return (i, bary);
         }
     }
@@ -392,7 +509,7 @@ pub fn find_normals(
     parametrized_vertices: &Vec<Vertex>,
     triangles: &Vec<Triangle>,
     parametrized_mesh: &TriangleMesh,
-) -> Vec<Vector4<f32>> {
+) -> Vec<Vector4<f64>> {
     let mut normals = Vec::new();
     for tri in triangles {
         let center = Point3::from(

@@ -3,6 +3,6 @@ use image::Rgb;
 
 pub struct LightSource {
     pub pos: Point,
-    pub intensity: f32,
+    pub intensity: f64,
     pub color: Rgb<u8>,
 }

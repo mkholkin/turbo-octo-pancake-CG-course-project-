@@ -6,4 +6,4 @@ pub mod model3d;
 pub mod triangle_mesh;
 pub mod morph;
 
-type Point = Point3<f32>;
+type Point = Point3<f64>;

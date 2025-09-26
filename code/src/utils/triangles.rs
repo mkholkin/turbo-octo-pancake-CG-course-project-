@@ -1,11 +1,11 @@
 use nalgebra::{Point3, Vector3};
 
 pub fn barycentric(
-    p: &Point3<f32>,
-    a: &Point3<f32>,
-    b: &Point3<f32>,
-    c: &Point3<f32>,
-) -> Vector3<f32> {
+    p: &Point3<f64>,
+    a: &Point3<f64>,
+    b: &Point3<f64>,
+    c: &Point3<f64>,
+) -> Vector3<f64> {
     let v0 = *b - *a;
     let v1 = *c - *a;
     let v2 = *p - *a;

@@ -1,8 +1,8 @@
 use nalgebra::{Point3, Vector3};
 use std::collections::HashMap;
-use std::f32::consts::PI;
+use std::f64::consts::PI;
 
-pub type Vertex = Point3<f32>;
+pub type Vertex = Point3<f64>;
 
 #[derive(Default)]
 pub struct Face {
@@ -134,7 +134,7 @@ impl DCEL {
 }
 
 /// Вычисляет угол направления в касательной плоскости вершины.
-fn tangent_angle(normal: &Vector3<f32>, direction: &Vector3<f32>) -> f32 {
+fn tangent_angle(normal: &Vector3<f64>, direction: &Vector3<f64>) -> f64 {
     // Шаг 1: Выбираем опорный вектор, не коллинеарный нормали.
     let mut ref_vector = if normal.x.abs() < 0.1 && normal.y.abs() < 0.1 {
         // Если нормаль близка к оси Z

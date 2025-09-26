@@ -1,8 +1,7 @@
 use crate::objects::Point;
+use crate::utils::math::lerp;
 use image::Rgb;
 use nalgebra::{Matrix4, Vector4};
-use std::ops::Mul;
-use crate::utils::math::lerp;
 
 pub type Triangle = (usize, usize, usize);
 
@@ -12,7 +11,7 @@ pub trait Model3D {
     // fn edges(&'a self) -> &'a Vec<>;
 
     /// List of normalized external normals
-    fn normals(&self) -> &Vec<Vector4<f32>>;
+    fn normals(&self) -> &Vec<Vector4<f64>>;
 
     /// List of vertices
     fn vertices(&self) -> &Vec<Point>;
@@ -30,30 +29,32 @@ pub trait Model3D {
     fn compute_normals(&mut self);
 
     /// Get model's transformation matrix
-    fn model_matrix(&self) -> &Matrix4<f32>;
+    fn model_matrix(&self) -> &Matrix4<f64>;
+
+    fn update(&mut self, t: f64) {}
 }
 
 pub trait Translate {
-    fn translate(&mut self, translation: (f32, f32, f32));
+    fn translate(&mut self, translation: (f64, f64, f64));
 }
 
 pub trait Rotate {
-    fn rotate(&mut self, axis_angle_radians: (f32, f32, f32));
+    fn rotate(&mut self, axis_angle_radians: (f64, f64, f64));
 }
 
 pub trait Scale {
-    fn scale(&mut self, scaling: f32);
+    fn scale(&mut self, scaling: f64);
 }
 
 pub trait InteractiveModel: Model3D + Rotate + Scale {}
 
 #[derive(Clone)]
 pub struct Material {
-    pub diffuse_reflectance_factor: f32,
-    pub specular_reflectance_factor: f32,
-    pub gloss: f32,
+    pub diffuse_reflectance_factor: f64,
+    pub specular_reflectance_factor: f64,
+    pub gloss: f64,
     pub color: Rgb<u8>,
-    pub opacity: f32,
+    pub opacity: f64,
 }
 
 impl Default for Material {
@@ -61,7 +62,7 @@ impl Default for Material {
         Self {
             diffuse_reflectance_factor: 0.45,
             specular_reflectance_factor: 0.02,
-            gloss: 3.,
+            gloss: 1.,
             color: Rgb([208, 43, 43]),
             opacity: 0.1,
         }
@@ -69,15 +70,23 @@ impl Default for Material {
 }
 
 impl Material {
-    pub fn lerp(a: &Material, b: &Material, t: f32) -> Material {
-        let diffuse_reflectance_factor = lerp(a.diffuse_reflectance_factor, b.diffuse_reflectance_factor, t);
-        let specular_reflectance_factor = lerp(a.specular_reflectance_factor, b.specular_reflectance_factor, t);
+    pub fn lerp(a: &Material, b: &Material, t: f64) -> Material {
+        let diffuse_reflectance_factor = lerp(
+            a.diffuse_reflectance_factor,
+            b.diffuse_reflectance_factor,
+            t,
+        );
+        let specular_reflectance_factor = lerp(
+            a.specular_reflectance_factor,
+            b.specular_reflectance_factor,
+            t,
+        );
         let gloss = lerp(a.gloss, b.gloss, t);
         let opacity = lerp(a.opacity, b.opacity, t);
 
-        let r = lerp(a.color[0] as f32, b.color[0] as f32, t).round() as u8;
-        let g = lerp(a.color[1] as f32, b.color[1] as f32, t).round() as u8;
-        let b = lerp(a.color[2] as f32, b.color[2] as f32, t).round() as u8;
+        let r = lerp(a.color[0] as f64, b.color[0] as f64, t).round() as u8;
+        let g = lerp(a.color[1] as f64, b.color[1] as f64, t).round() as u8;
+        let b = lerp(a.color[2] as f64, b.color[2] as f64, t).round() as u8;
         let color = Rgb([r, g, b]);
 
         Material {
