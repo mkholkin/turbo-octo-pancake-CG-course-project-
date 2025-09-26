@@ -4,7 +4,7 @@ use crate::objects::model3d::Model3D;
 use crate::render::{Renderer, calculate_color};
 use crate::scene::Scene;
 use image::{Rgb, RgbImage};
-use nalgebra::{Matrix4, Point3};
+use nalgebra::{Matrix4, Point3, Vector, Vector3};
 
 #[derive(Default)]
 pub struct ZBufferPerformer {
@@ -142,16 +142,35 @@ impl ZBufferPerformer {
             })
             .collect();
 
+        let mut vertex_normals/*: Vec<Vector3<f64>> */ = vec![Vector3::zeros(); model.vertices().len()];
+        for (tri, normal) in model.triangles().iter().zip(model.normals().iter()) {
+            vertex_normals[tri.0] += normal.xyz();
+            vertex_normals[tri.1] += normal.xyz();
+            vertex_normals[tri.2] += normal.xyz();
+        }
+        vertex_normals.iter_mut().for_each(|n| {
+            n.normalize_mut();
+        });
+
+        let vertex_colors = model
+            .vertices_world()
+            .iter()
+            .zip(vertex_normals.iter())
+            .map(|(v, n)| calculate_color(&model.material(), n, v, &light_source, &camera.pos))
+            .collect::<Vec<_>>();
+
         for (i, tri) in model.triangles().iter().enumerate() {
-            let tri_colors = [tri.0, tri.1, tri.2].map(|v_idx| {
-                calculate_color(
-                    &model.material(),
-                    &model.normals()[i].xyz(),
-                    &model.vertices_world()[v_idx],
-                    &light_source,
-                    &camera.pos,
-                )
-            });
+            // let tri_colors = [tri.0, tri.1, tri.2].map(|v_idx| {
+            //     calculate_color(
+            //         &model.material(),
+            //         &model.normals()[i].xyz(),
+            //         &model.vertices_world()[v_idx],
+            //         &light_source,
+            //         &camera.pos,
+            //     )
+            // });
+
+            let tri_colors = [vertex_colors[tri.0], vertex_colors[tri.1], vertex_colors[tri.2]];
 
             self.draw_triangle(
                 image,
