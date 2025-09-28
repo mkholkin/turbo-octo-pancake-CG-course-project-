@@ -4,6 +4,7 @@ use crate::objects::triangle_mesh::TriangleMesh;
 use crate::utils::dcel::{DCEL, Vertex};
 use crate::utils::triangles::barycentric;
 use delaunator::{Point, triangulate};
+use itertools::izip;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 
@@ -69,21 +70,20 @@ fn get_orientations(vertices: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Vec<f6
 }
 
 fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<f64>) {
-    let epsilon_threshold = 1e-4;
+    let epsilon_threshold = 1e-3;
 
     let neighbors = collect_neighbors(parametrized_mesh);
 
     // Релаксация сетки
-    let mut round_no: usize = 0;
     let mut orientations = get_orientations(
         parametrized_mesh.vertices_world(),
         parametrized_mesh.triangles(),
     );
     let mut orientations_established = original_orientations.iter().eq(orientations.iter());
-    let mut epsilon_reached = false;
+    let mut epsilon_reached = true;
+    let mut round_no: usize = 0;
 
-    // TODO: PIZDEC
-    while (!(epsilon_reached)) && round_no < RELAXATION_ROUNDS_LIMIT {
+    while (!(orientations_established && epsilon_reached)) && round_no < RELAXATION_ROUNDS_LIMIT {
         // 1. Сохраняем положение вершин перед релаксацией
         let prev_vertices = parametrized_mesh.vertices_world().clone();
 
@@ -100,6 +100,7 @@ fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<
                 vertices[i] = Vertex::from(new_pos);
             }
 
+            // Достигнут эпсилон-порог (вершины почти не сдвинулись)
             epsilon_reached = prev_vertices
                 .iter()
                 .zip(vertices.iter())
@@ -111,30 +112,9 @@ fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<
             vertices.iter_mut().for_each(|v| *v -= mean);
         }
 
-        // 3. Проверяем условия остановки
-        let curr_vertices = parametrized_mesh.vertices_world();
-        orientations = get_orientations(curr_vertices, parametrized_mesh.triangles());
-
-        // Условие 1: Ориентации граней совпадают с оригинальными (нет вывернутых граней)
+        // Главное условие остановки: Ориентации граней совпадают с оригинальными (нет вывернутых граней)
+        orientations = get_orientations(parametrized_mesh.vertices_world(), parametrized_mesh.triangles());
         orientations_established = original_orientations.iter().eq(orientations.iter());
-
-        // Условие 2: Достигнут эпсилон-порог (вершины почти не сдвинулись)
-        // epsilon_reached = prev_vertices
-        //     .iter()
-        //     .zip(curr_vertices.iter())
-        //     .all(|(prev, curr)| (prev - curr).norm() < epsilon_threshold);
-
-        // Центрирование сферы для избежания коллапса вершин
-        // let mean: Vector3<f64> = parametrized_mesh
-        //     .vertices_world()
-        //     .iter()
-        //     .map(|v| v.coords)
-        //     .sum::<Vector3<f64>>()
-        //     / parametrized_mesh.vertices().len() as f64;
-        // parametrized_mesh
-        //     .vertices_world_mut()
-        //     .iter_mut()
-        //     .for_each(|v| *v -= mean);
 
         round_no += 1;
     }
@@ -143,11 +123,19 @@ fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<
 }
 
 pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
+    let vertices_world = mesh.vertices_world();
+    let original_orientations = izip!(mesh.triangles(), mesh.normals())
+        .map(|(tri, normal)| {
+            let origin = vertices_world[tri.0].coords - normal.xyz();
+            let v0 = vertices_world[tri.0].coords - origin;
+            let v1 = vertices_world[tri.1].coords - origin;
+            let v2 = vertices_world[tri.2].coords - origin;
+            v0.cross(&v1).dot(&v2).signum()
+        })
+        .collect();
+
     // TODO: нужно искать не центр масс, а внутреннюю точку
     let center = center_of_mass(mesh);
-
-    let original_orientations = get_orientations(&mesh.vertices_world(), &mesh.triangles());
-
     for v in mesh.vertices_world_mut() {
         *v = Point3::from((v.coords - center).normalize());
     }
