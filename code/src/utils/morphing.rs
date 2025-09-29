@@ -245,6 +245,8 @@ fn find_or_add_vertex(vertices: &mut Vec<Point3<f64>>, point: Point3<f64>) -> us
 /// Примечание: Это заглушка для `build_dcel`, так как полная реализация очень сложна.
 /// Функция сосредоточена на определении уникальных сегментов и вершин.
 pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
+    // FIXME: здесь не учитываются вершины, которые могут быть одинаковыми в обеих сетках -> дублирование вершин
+    // FIXME: также не рассматриватеся случай, когда вершина лежит на ребре
     // Объединяем все вершины из обеих сеток в один изменяемый список.
     let mut all_vertices = mesh_a.vertices_world().clone();
     all_vertices.extend(mesh_b.vertices_world().clone());
