@@ -5,26 +5,27 @@ use crate::utils::math::lerp;
 use crate::utils::morphing::{
     create_dcel_map, find_normals, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel,
 };
+use egui::debug_text::print;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
-pub type Lerp<T> = Box<dyn Fn(f32) -> T>;
+pub type Lerp<T> = Box<dyn Fn(f64) -> T>;
 pub type VertexInterpolation = Lerp<Point>;
-pub type NormalInterpolation = Lerp<Vector4<f32>>;
+pub type NormalInterpolation = Lerp<Vector4<f64>>;
 pub type MaterialInterpolation = Lerp<Material>;
 
 pub struct Morph {
     vertices: Vec<Point>,
     vertices_world: Vec<Point>,
     triangles: Vec<Triangle>,
-    normals: Vec<Vector4<f32>>,
-    normals_world: Vec<Vector4<f32>>,
+    normals: Vec<Vector4<f64>>,
+    normals_world: Vec<Vector4<f64>>,
     material: Material,
 
     vertex_interpolations: Vec<VertexInterpolation>,
     normals_interpolations: Vec<NormalInterpolation>,
     material_interpolation: MaterialInterpolation,
 
-    model_matrix: Matrix4<f32>,
+    model_matrix: Matrix4<f64>,
 }
 
 impl Morph {
@@ -56,7 +57,7 @@ impl Morph {
             .into_iter()
             .zip(dst_vertices.into_iter())
             .map(|(src_v, dst_v)| -> VertexInterpolation {
-                Box::new(move |t: f32| Point::from((1. - t) * src_v.coords + t * dst_v.coords))
+                Box::new(move |t: f64| Point::from((1. - t) * src_v.coords + t * dst_v.coords))
             })
             .collect();
 
@@ -64,14 +65,14 @@ impl Morph {
             .into_iter()
             .zip(dst_normals.into_iter())
             .map(|(src_n, dst_n)| -> NormalInterpolation {
-                Box::new(move |t: f32| lerp(src_n, dst_n, t))
+                Box::new(move |t: f64| lerp(src_n, dst_n, t))
             })
             .collect();
 
         let src_material = obj_a.material().clone();
         let dst_material = obj_b.material().clone();
         let material_interpolation: MaterialInterpolation =
-            Box::new(move |t: f32| Material::lerp(&src_material, &dst_material, t));
+            Box::new(move |t: f64| Material::lerp(&src_material, &dst_material, t));
 
         // 6. Строим интерполяции при t=0
         // Строим вершины
@@ -79,7 +80,7 @@ impl Morph {
         let vertices_world = vertices.clone();
 
         // Строим нормали
-        let normals: Vec<Vector4<f32>> =
+        let normals: Vec<Vector4<f64>> =
             normals_interpolations.iter().map(|lerp| lerp(0.)).collect();
         let normals_world = normals.clone();
 
@@ -98,25 +99,6 @@ impl Morph {
             material_interpolation,
             model_matrix: Matrix4::identity(),
         }
-    }
-
-    pub fn update(&mut self, t: f32) {
-        // Рассчитать вершины
-        for i in 0..self.vertices.len() {
-            self.vertices[i] = self.vertex_interpolations[i](t);
-        }
-
-        // Рассчитать нормали
-        for i in 0..self.normals.len() {
-            self.normals[i] = self.normals_interpolations[i](t);
-            self.normals[i];
-        }
-
-        self.update_vertices_world();
-        self.update_normals_world();
-
-        // Рассчитать материал
-        self.material = (self.material_interpolation)(t);
     }
 }
 
@@ -139,7 +121,7 @@ impl Model3D for Morph {
         &self.triangles
     }
 
-    fn normals(&self) -> &Vec<Vector4<f32>> {
+    fn normals(&self) -> &Vec<Vector4<f64>> {
         &self.normals_world
     }
 
@@ -163,13 +145,32 @@ impl Model3D for Morph {
         todo!()
     }
 
-    fn model_matrix(&self) -> &Matrix4<f32> {
+    fn model_matrix(&self) -> &Matrix4<f64> {
         &self.model_matrix
+    }
+
+    fn update(&mut self, t: f64) {
+        // Рассчитать вершины
+        for i in 0..self.vertices.len() {
+            self.vertices[i] = self.vertex_interpolations[i](t);
+        }
+
+        // Рассчитать нормали
+        for i in 0..self.normals.len() {
+            self.normals[i] = self.normals_interpolations[i](t);
+            self.normals[i];
+        }
+
+        self.update_vertices_world();
+        self.update_normals_world();
+
+        // Рассчитать материал
+        self.material = (self.material_interpolation)(t);
     }
 }
 
 impl Rotate for Morph {
-    fn rotate(&mut self, axis_angle_radians: (f32, f32, f32)) {
+    fn rotate(&mut self, axis_angle_radians: (f64, f64, f64)) {
         let rotation_matrix = Matrix4::new_rotation(Vector3::new(
             axis_angle_radians.0,
             axis_angle_radians.1,
@@ -183,7 +184,7 @@ impl Rotate for Morph {
 }
 
 impl Scale for Morph {
-    fn scale(&mut self, scaling: f32) {
+    fn scale(&mut self, scaling: f64) {
         self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
         self.update_vertices_world()
     }

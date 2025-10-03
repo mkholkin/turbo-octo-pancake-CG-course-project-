@@ -6,6 +6,6 @@ use crate::objects::morph::Morph;
 pub struct Scene {
     pub camera: Camera,
     pub light_source: LightSource,
-    pub object: Box<Morph>,
-    // pub object: Box<dyn InteractiveModel>,
+    pub active_object_idx: usize,
+    pub objects: Vec<Box<dyn InteractiveModel>>,
 }

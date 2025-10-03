@@ -1,3 +1,5 @@
+use crate::objects::camera::Camera;
+use crate::objects::light::LightSource;
 use crate::objects::model3d::Model3D;
 use crate::render::{Renderer, calculate_color};
 use crate::scene::Scene;
@@ -8,7 +10,7 @@ use nalgebra::{Matrix4, Point3};
 pub struct ZBufferPerformer {
     width: u32,
     height: u32,
-    z_buffer: Vec<f32>,
+    z_buffer: Vec<f64>,
 }
 
 impl ZBufferPerformer {
@@ -16,7 +18,7 @@ impl ZBufferPerformer {
         Self {
             width,
             height,
-            z_buffer: vec![f32::INFINITY; (width * height) as usize],
+            z_buffer: vec![f64::INFINITY; (width * height) as usize],
         }
     }
 
@@ -24,18 +26,18 @@ impl ZBufferPerformer {
         self.width = width;
         self.height = height;
         self.z_buffer
-            .resize((width * height) as usize, f32::INFINITY);
-        self.z_buffer.fill(f32::INFINITY);
+            .resize((width * height) as usize, f64::INFINITY);
+        self.z_buffer.fill(f64::INFINITY);
     }
 
     /// Sets the depth value at a specific coordinate.
-    fn set_depth(&mut self, x: u32, y: u32, depth: f32) {
+    fn set_depth(&mut self, x: u32, y: u32, depth: f64) {
         let index = (y * self.width + x) as usize;
         self.z_buffer[index] = depth;
     }
 
     /// Gets the depth value at a specific coordinate.
-    fn get_depth(&self, x: u32, y: u32) -> f32 {
+    fn get_depth(&self, x: u32, y: u32) -> f64 {
         let index = (y * self.width + x) as usize;
         self.z_buffer[index]
     }
@@ -43,7 +45,7 @@ impl ZBufferPerformer {
     fn draw_triangle(
         &mut self,
         image: &mut RgbImage,
-        tri: &[Point3<f32>; 3],
+        tri: &[Point3<f64>; 3],
         tri_colors: &[Rgb<u8>; 3],
     ) {
         let [p1, p2, p3] = *tri;
@@ -61,9 +63,9 @@ impl ZBufferPerformer {
             for x in min_x..=max_x {
                 // Calculate barycentric coordinates.
                 let bary_x_num =
-                    (p2.y - p3.y) * (x as f32 - p3.x) + (p3.x - p2.x) * (y as f32 - p3.y);
+                    (p2.y - p3.y) * (x as f64 - p3.x) + (p3.x - p2.x) * (y as f64 - p3.y);
                 let bary_y_num =
-                    (p3.y - p1.y) * (x as f32 - p3.x) + (p1.x - p3.x) * (y as f32 - p3.y);
+                    (p3.y - p1.y) * (x as f64 - p3.x) + (p1.x - p3.x) * (y as f64 - p3.y);
 
                 let bary = Point3::new(
                     bary_x_num / denom,
@@ -80,17 +82,17 @@ impl ZBufferPerformer {
                         self.set_depth(x, y, z);
 
                         // Interpolate colors correctly for each channel.
-                        let r = (bary.x * tri_colors[0].0[0] as f32
-                            + bary.y * tri_colors[1].0[0] as f32
-                            + bary.z * tri_colors[2].0[0] as f32)
+                        let r = (bary.x * tri_colors[0].0[0] as f64
+                            + bary.y * tri_colors[1].0[0] as f64
+                            + bary.z * tri_colors[2].0[0] as f64)
                             .clamp(0.0, 255.0) as u8;
-                        let g = (bary.x * tri_colors[0].0[1] as f32
-                            + bary.y * tri_colors[1].0[1] as f32
-                            + bary.z * tri_colors[2].0[1] as f32)
+                        let g = (bary.x * tri_colors[0].0[1] as f64
+                            + bary.y * tri_colors[1].0[1] as f64
+                            + bary.z * tri_colors[2].0[1] as f64)
                             .clamp(0.0, 255.0) as u8;
-                        let b = (bary.x * tri_colors[0].0[2] as f32
-                            + bary.y * tri_colors[1].0[2] as f32
-                            + bary.z * tri_colors[2].0[2] as f32)
+                        let b = (bary.x * tri_colors[0].0[2] as f64
+                            + bary.y * tri_colors[1].0[2] as f64
+                            + bary.z * tri_colors[2].0[2] as f64)
                             .clamp(0.0, 255.0) as u8;
 
                         image.put_pixel(x, y, Rgb([r, g, b]));
@@ -99,27 +101,26 @@ impl ZBufferPerformer {
             }
         }
     }
-}
-impl Renderer for ZBufferPerformer {
-    fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
-        let (width, height) = image.dimensions();
 
-        self.reset(width, height);
-        image.fill(70);
-
-        let model = &scene.object;
-
+    fn draw_object(
+        &mut self,
+        image: &mut RgbImage,
+        model: &dyn Model3D,
+        camera: &Camera,
+        light_source: &LightSource,
+    ) {
         // Calculate the MVPV matrix once
-        let mvp_matrix = scene.camera.camera_matrix * model.model_matrix();
+        let (width, height) = image.dimensions();
+        let mvp_matrix = camera.camera_matrix * model.model_matrix();
         let viewport_matrix = Matrix4::new(
-            width as f32 / 2.,
+            width as f64 / 2.,
             0.,
             0.,
-            width as f32 / 2.,
+            width as f64 / 2.,
             0.,
-            -(height as f32 / 2.),
+            -(height as f64 / 2.),
             0.,
-            height as f32 / 2.,
+            height as f64 / 2.,
             0.,
             0.,
             1.,
@@ -132,7 +133,7 @@ impl Renderer for ZBufferPerformer {
         let mvpv_matrix = viewport_matrix * mvp_matrix;
 
         // Transform the world-space vertices once
-        let camera_dim_v: Vec<Point3<f32>> = model
+        let camera_dim_v: Vec<Point3<f64>> = model
             .vertices()
             .iter()
             .map(|v| {
@@ -147,8 +148,8 @@ impl Renderer for ZBufferPerformer {
                     &model.material(),
                     &model.normals()[i].xyz(),
                     &model.vertices_world()[v_idx],
-                    &scene.light_source,
-                    &scene.camera.pos,
+                    &light_source,
+                    &camera.pos,
                 )
             });
 
@@ -161,6 +162,17 @@ impl Renderer for ZBufferPerformer {
                 ],
                 &tri_colors,
             );
+        }
+    }
+}
+impl Renderer for ZBufferPerformer {
+    fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
+        let (width, height) = image.dimensions();
+        self.reset(width, height);
+        image.fill(70);
+
+        for object in &scene.objects {
+            self.draw_object(image, &**object, &scene.camera, &scene.light_source);
         }
     }
 }

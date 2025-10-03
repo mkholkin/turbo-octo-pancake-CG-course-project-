@@ -1,23 +1,41 @@
 use crate::objects::Point;
 use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale, Triangle};
-use crate::utils::morphing::center_of_mass;
+use crate::utils::morphing::{center_of_mass, triangulate_dcel};
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::error::Error;
 use std::fs;
 use std::io::{BufRead, BufReader};
+use image::Rgb;
+use crate::utils::dcel::DCEL;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct TriangleMesh {
-    vertices: Vec<Point>,
-    vertices_world: Vec<Point>, // Вершины умноженные на матрицу преобразования
-    normals: Vec<Vector4<f32>>,
-    normals_world: Vec<Vector4<f32>>, // Нормали умноженные на матрицу преобразования
+    pub vertices: Vec<Point>,
+    pub vertices_world: Vec<Point>, // Вершины умноженные на матрицу преобразования
+    normals: Vec<Vector4<f64>>,
+    normals_world: Vec<Vector4<f64>>, // Нормали умноженные на матрицу преобразования
     triangles: Vec<Triangle>,
     pub material: Material,
 
-    model_matrix: Matrix4<f32>,
+    pub model_matrix: Matrix4<f64>,
     normals_need_update: bool,
     vertices_need_update: bool,
+}
+
+impl Default for TriangleMesh {
+    fn default() -> Self {
+        Self {
+            vertices: Vec::default(),
+            vertices_world: Vec::default(),
+            normals: Vec::default(),
+            normals_world: Vec::default(),
+            triangles: Vec::default(),
+            material: Material::default(),
+            model_matrix: Matrix4::identity(),
+            normals_need_update: false,
+            vertices_need_update: false,
+        }
+    }
 }
 
 impl TriangleMesh {
@@ -47,7 +65,7 @@ impl Model3D for TriangleMesh {
         &self.triangles
     }
 
-    fn normals(&self) -> &Vec<Vector4<f32>> {
+    fn normals(&self) -> &Vec<Vector4<f64>> {
         &self.normals_world
     }
 
@@ -71,13 +89,13 @@ impl Model3D for TriangleMesh {
         todo!()
     }
 
-    fn model_matrix(&self) -> &Matrix4<f32> {
+    fn model_matrix(&self) -> &Matrix4<f64> {
         &self.model_matrix
     }
 }
 
 impl Rotate for TriangleMesh {
-    fn rotate(&mut self, axis_angle_radians: (f32, f32, f32)) {
+    fn rotate(&mut self, axis_angle_radians: (f64, f64, f64)) {
         let rotation_matrix = Matrix4::new_rotation(Vector3::new(
             axis_angle_radians.0,
             axis_angle_radians.1,
@@ -93,7 +111,7 @@ impl Rotate for TriangleMesh {
 }
 
 impl Scale for TriangleMesh {
-    fn scale(&mut self, scaling: f32) {
+    fn scale(&mut self, scaling: f64) {
         self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
         self.vertices_need_update = true;
         self.update_vertices_world()
@@ -160,7 +178,7 @@ impl TriangleMesh {
         let reader = BufReader::new(file);
 
         let mut mesh = TriangleMesh::default();
-        let mut temp_normals: Vec<Vector4<f32>> = Vec::new();
+        let mut temp_normals: Vec<Vector4<f64>> = Vec::new();
 
         for (i, line) in reader.lines().enumerate() {
             let line = line?;
@@ -174,16 +192,16 @@ impl TriangleMesh {
             match parts[0] {
                 // Parse vertex line: `v x y z`
                 "v" => {
-                    let x = parts[1].parse::<f32>()?;
-                    let y = parts[2].parse::<f32>()?;
-                    let z = parts[3].parse::<f32>()?;
+                    let x = parts[1].parse::<f64>()?;
+                    let y = parts[2].parse::<f64>()?;
+                    let z = parts[3].parse::<f64>()?;
                     mesh.vertices.push(Point::new(x, y, z));
                 }
                 // Parse a normal line: `vn x y z`
                 "vn" => {
-                    let x = parts[1].parse::<f32>()?;
-                    let y = parts[2].parse::<f32>()?;
-                    let z = parts[3].parse::<f32>()?;
+                    let x = parts[1].parse::<f64>()?;
+                    let y = parts[2].parse::<f64>()?;
+                    let z = parts[3].parse::<f64>()?;
                     temp_normals.push(Vector4::new(x, y, z, 0.).normalize());
                 }
                 // Parse a face line: `f v1//vn1 v2//vn2 v3//vn3`
@@ -242,6 +260,22 @@ impl TriangleMesh {
 
     pub fn vertices_mut(&mut self) -> &mut Vec<Point> {
         &mut self.vertices
+    }
+    pub fn vertices_world_mut(&mut self) -> &mut Vec<Point> {
+        &mut self.vertices_world
+    }
+}
+
+impl From<DCEL> for TriangleMesh {
+    fn from(dcel: DCEL) -> Self {
+        let mut mesh = Self::default();
+
+        mesh.triangles = triangulate_dcel(&dcel);
+        mesh.vertices = dcel.vertices;
+        mesh.vertices_world = mesh.vertices.clone();
+        mesh.material.color = Rgb([0, 255, 0]);
+
+        mesh
     }
 }
 

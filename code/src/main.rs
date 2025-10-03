@@ -13,21 +13,22 @@ use crate::config::{
     ROTATION_SENSITIVITY_FACTOR, SCALING_SENSITIVITY_FACTOR,
 };
 use crate::objects::light::LightSource;
+use crate::objects::model3d::InteractiveModel;
+use crate::objects::morph::Morph;
 use crate::render::Renderer;
+use crate::render::transparency::TransparencyPerformer;
+use crate::render::wireframe_drawer::WireframePerformer;
 use crate::render::z_buffer::ZBufferPerformer;
 use crate::scene::Scene;
 use eframe::egui::{CentralPanel, Context, TextureHandle};
 use eframe::{App, Frame, NativeOptions};
 use egui::{InputState, Key};
 use image::{Rgb, RgbImage};
-use imageproc::definitions::HasWhite;
+use imageproc::definitions::{HasBlack, HasWhite};
 use nalgebra::{Point3, Vector3};
-use crate::objects::model3d::{Rotate, Scale};
-use crate::objects::morph::Morph;
-use crate::render::transparency::TransparencyPerformer;
 
-const IMG_WIDTH: u32 = 1000;
-const IMG_HEIGHT: u32 = 1000;
+const IMG_WIDTH: u32 = 2000;
+const IMG_HEIGHT: u32 = 2000;
 
 struct MyEguiApp {
     texture: Option<TextureHandle>,
@@ -35,7 +36,7 @@ struct MyEguiApp {
     scene: Scene,
     renderer: Box<dyn Renderer>,
 
-    fps: f32,
+    fps: f64,
     last_frame_time: Instant,
 }
 
@@ -47,7 +48,7 @@ impl<'a> Default for MyEguiApp {
             Vector3::new(0.0, 1.0, 0.0),
             FOV_DEGREES.to_radians(),
             ASPECT_RATIO,
-            NEAR_PLANE,
+            NEAR_PLANE.into(),
             FAR_PLANE,
         );
         let light_source = LightSource {
@@ -55,22 +56,37 @@ impl<'a> Default for MyEguiApp {
             intensity: 10.,
             color: Rgb::white(),
         };
-        // let mut object = Box::new(TriangleMesh::from_obj("data/Banana.obj").unwrap());
 
-        let a = TriangleMesh::from_obj("data/cube.obj").unwrap();
-        let mut b = TriangleMesh::from_obj("data/fixed_sphere.obj").unwrap();
-        b.material.color = Rgb([7, 149, 210]);
-        b.material.specular_reflectance_factor = 0.7;
+        // let mut a = Box::new(TriangleMesh::from_obj("data/cherry_single.obj").unwrap());
+        // parametrize_mesh(&mut a);
 
-        let object = Box::new(Morph::new(
+        // let mut b = Box::new(TriangleMesh::from_obj("data/apple.obj").unwrap());
+        // b.material.color = Rgb::black();
+        // parametrize_mesh(&mut b);
+        //
+        // let c = Box::new(TriangleMesh::from(create_dcel_map(&a, &b)));
+
+        // let objects: Vec<Box<dyn InteractiveModel>> = vec![a];
+
+        let mut a = TriangleMesh::from_obj("data/apple2.obj").unwrap();
+        a.material.diffuse_reflectance_factor = 0.5;
+        let mut b = TriangleMesh::from_obj("data/pear.obj").unwrap();
+        b.material.color = Rgb([206, 208, 51]);
+        b.material.specular_reflectance_factor = 0.0;
+        a.material.specular_reflectance_factor = 0.0;
+
+        let morph = Box::new(Morph::new(
             a,
             b,
         ));
 
+        let objects: Vec<Box<dyn InteractiveModel>> = vec![morph];
+
         let scene = Scene {
             camera,
             light_source,
-            object,
+            active_object_idx: 0,
+            objects,
         };
 
         Self {
@@ -79,6 +95,7 @@ impl<'a> Default for MyEguiApp {
             scene,
             renderer: Box::new(ZBufferPerformer::new(IMG_WIDTH, IMG_HEIGHT)),
             // renderer: Box::new(TransparencyPerformer {}),
+            // renderer: Box::new(WireframePerformer {}),
             fps: 0.0,
             last_frame_time: Instant::now(),
         }
@@ -109,7 +126,9 @@ impl MyEguiApp {
         if scroll_delta.y != 0.0 {
             let scaling_factor =
                 (1. + scroll_delta.y.max(-200.) * SCALING_SENSITIVITY_FACTOR).max(f32::EPSILON);
-            self.scene.object.scale(scaling_factor);
+            for object in self.scene.objects.iter_mut() {
+                object.scale(scaling_factor.into());
+            }
             self.update_frame(ctx);
         }
     }
@@ -123,15 +142,19 @@ impl MyEguiApp {
             let rotation_y = delta.x * ROTATION_SENSITIVITY_FACTOR;
 
             // Apply the new rotation to the existing one
-            self.scene
-                .object
-                .rotate((rotation_x.to_radians(), rotation_y.to_radians(), 0.));
+            for object in self.scene.objects.iter_mut() {
+                object.rotate((
+                    rotation_x.to_radians().into(),
+                    rotation_y.to_radians().into(),
+                    0.,
+                ));
+            }
             self.update_frame(ctx);
         }
     }
 
     unsafe fn update_morph_phase(&mut self, ctx: &Context) {
-        static mut T: f32 = 0.;
+        static mut T: f64 = 0.;
         let t_step = 0.05;
 
         ctx.input(|i: &InputState| unsafe {
@@ -143,13 +166,13 @@ impl MyEguiApp {
             }
         });
 
-        self.scene.object.update(T);
+        self.scene.objects[self.scene.active_object_idx].update(T);
         self.update_frame(ctx);
     }
 
     fn update_fps(&mut self) {
         let now = Instant::now();
-        let frame_time = now.duration_since(self.last_frame_time).as_secs_f32();
+        let frame_time = now.duration_since(self.last_frame_time).as_secs_f64();
         self.last_frame_time = now;
         self.fps = 1.0 / frame_time;
     }
@@ -157,11 +180,13 @@ impl MyEguiApp {
 
 impl App for MyEguiApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+        ctx.set_pixels_per_point(1.);
         self.update_fps();
         self.mouse_wheel_scaling(ctx);
         self.mouse_drag_rotation(ctx);
-        unsafe { self.update_morph_phase(ctx); }
-
+        unsafe {
+            self.update_morph_phase(ctx);
+        }
 
         CentralPanel::default().show(ctx, |ui| {
             ui.heading("Анимация в egui");
