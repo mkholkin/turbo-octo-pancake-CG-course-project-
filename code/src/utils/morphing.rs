@@ -4,8 +4,10 @@ use crate::objects::triangle_mesh::TriangleMesh;
 use crate::utils::dcel::{DCEL, Vertex};
 use crate::utils::triangles::barycentric;
 use delaunator::{Point, triangulate};
-use itertools::izip;
-use nalgebra::{Matrix4, Point3, Vector3, Vector4};
+use itertools::{izip};
+use kornia::icp::{ICPConvergenceCriteria, icp_vanilla};
+use kornia::k3d::pointcloud::PointCloud;
+use nalgebra::{Matrix3, Matrix4, Point3, Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 
 const EPS: f64 = 1e-6;
@@ -113,7 +115,10 @@ fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<
         }
 
         // Главное условие остановки: Ориентации граней совпадают с оригинальными (нет вывернутых граней)
-        orientations = get_orientations(parametrized_mesh.vertices_world(), parametrized_mesh.triangles());
+        orientations = get_orientations(
+            parametrized_mesh.vertices_world(),
+            parametrized_mesh.triangles(),
+        );
         orientations_established = original_orientations.iter().eq(orientations.iter());
 
         round_no += 1;
@@ -514,4 +519,57 @@ pub fn find_normals(
     }
 
     normals
+}
+
+/// Исправленная функция выравнивания сеток
+pub fn align_parametrized_meshes(source_mesh: &mut TriangleMesh, target_mesh: &mut TriangleMesh) {
+    let source_pcd = PointCloud::new(
+        source_mesh
+            .vertices_world()
+            .iter()
+            .map(|p| [p.x, p.y, p.z])
+            .collect(),
+        None,
+        None,
+    );
+    let target_pcd = PointCloud::new(
+        target_mesh
+            .vertices_world()
+            .iter()
+            .map(|p| [p.x, p.y, p.z])
+            .collect(),
+        None,
+        None,
+    );
+
+    let icp_result = icp_vanilla(
+        &source_pcd,
+        &target_pcd,
+        [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+        [0., 0., 0.],
+        ICPConvergenceCriteria {
+            max_iterations: 200,
+            tolerance: 1e-8,
+        },
+    )
+    .unwrap();
+
+    let translation = Vector3::from(icp_result.translation);
+    let rotation = Matrix3::from(icp_result.rotation);
+
+    println!("Найденная трансформация:\n{}\n{}", translation, rotation);
+    println!(
+        "{} шагов. Ошибка: {}",
+        icp_result.num_iterations, icp_result.rmse
+    );
+
+    // Применяем трансформации
+    let source_vertices = source_pcd.points().iter().map(|p| Vertex::from(*p));
+    for (v, source_v) in source_mesh.vertices_mut().iter_mut().zip(source_vertices) {
+        let transformed = rotation * (source_v.coords + translation);
+        *v = Vertex::from(transformed);
+    }
+
+    source_mesh.model_matrix = Matrix4::identity();
+    source_mesh.update_vertices_world();
 }

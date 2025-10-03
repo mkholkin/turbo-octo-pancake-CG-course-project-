@@ -4,6 +4,7 @@ mod render;
 mod scene;
 mod utils;
 
+use std::f64::consts::PI;
 use crate::objects::camera::Camera;
 use crate::objects::triangle_mesh::TriangleMesh;
 use std::time::Instant;
@@ -13,7 +14,7 @@ use crate::config::{
     ROTATION_SENSITIVITY_FACTOR, SCALING_SENSITIVITY_FACTOR,
 };
 use crate::objects::light::LightSource;
-use crate::objects::model3d::InteractiveModel;
+use crate::objects::model3d::{InteractiveModel, Model3D, Rotate};
 use crate::objects::morph::Morph;
 use crate::render::Renderer;
 use crate::render::transparency::TransparencyPerformer;
@@ -25,10 +26,11 @@ use eframe::{App, Frame, NativeOptions};
 use egui::{InputState, Key};
 use image::{Rgb, RgbImage};
 use imageproc::definitions::{HasBlack, HasWhite};
-use nalgebra::{Point3, Vector3};
+use nalgebra::{Matrix4, Point3, Vector3};
+use crate::utils::morphing::{align_parametrized_meshes, parametrize_mesh};
 
-const IMG_WIDTH: u32 = 2000;
-const IMG_HEIGHT: u32 = 2000;
+const IMG_WIDTH: u32 = 1000;
+const IMG_HEIGHT: u32 = 1000;
 
 struct MyEguiApp {
     texture: Option<TextureHandle>,
@@ -56,21 +58,32 @@ impl<'a> Default for MyEguiApp {
             intensity: 10.,
             color: Rgb::white(),
         };
+        //
+        // let mut a = Box::new(TriangleMesh::from_obj("data/apple2.obj").unwrap());
+        // a.rotate((20. / 180. * PI, 30. / 180. * PI, 20. / 180. * PI));
+        // a.update_vertices_world();
+        // a.material.color = Rgb([0, 0, 255]);
 
-        // let mut a = Box::new(TriangleMesh::from_obj("data/cherry_single.obj").unwrap());
         // parametrize_mesh(&mut a);
 
-        // let mut b = Box::new(TriangleMesh::from_obj("data/apple.obj").unwrap());
-        // b.material.color = Rgb::black();
+        // let mut b = Box::new(TriangleMesh::from_obj("data/apple2.obj").unwrap());
+        // b.material.color = Rgb([255, 0, 0]);
         // parametrize_mesh(&mut b);
-        //
-        // let c = Box::new(TriangleMesh::from(create_dcel_map(&a, &b)));
 
-        // let objects: Vec<Box<dyn InteractiveModel>> = vec![a];
+        // let mut c = a.clone();
+        // c.material.color = Rgb([0, 255, 0]);
+        // c.vertices = c.vertices_world.clone();
+        // c.model_matrix = Matrix4::identity();
+        // c.update_vertices_world();
+        //
+        // align_parametrized_meshes(&mut a, &mut b);
+        //
+        // let objects: Vec<Box<dyn InteractiveModel>> = vec![a, b, c];
 
         let mut a = TriangleMesh::from_obj("data/apple2.obj").unwrap();
+        a.rotate((30., 20., 10.));
         a.material.diffuse_reflectance_factor = 0.5;
-        let mut b = TriangleMesh::from_obj("data/pear.obj").unwrap();
+        let mut b = TriangleMesh::from_obj("data/banana_repaired.obj").unwrap();
         b.material.color = Rgb([206, 208, 51]);
         b.material.specular_reflectance_factor = 0.0;
         a.material.specular_reflectance_factor = 0.0;
@@ -79,7 +92,6 @@ impl<'a> Default for MyEguiApp {
             a,
             b,
         ));
-
         let objects: Vec<Box<dyn InteractiveModel>> = vec![morph];
 
         let scene = Scene {
@@ -93,9 +105,9 @@ impl<'a> Default for MyEguiApp {
             texture: None,
             frame: RgbImage::from_pixel(IMG_WIDTH, IMG_HEIGHT, BACKGROUND_COLOR),
             scene,
-            renderer: Box::new(ZBufferPerformer::new(IMG_WIDTH, IMG_HEIGHT)),
+            // renderer: Box::new(ZBufferPerformer::new(IMG_WIDTH, IMG_HEIGHT)),
             // renderer: Box::new(TransparencyPerformer {}),
-            // renderer: Box::new(WireframePerformer {}),
+            renderer: Box::new(WireframePerformer {}),
             fps: 0.0,
             last_frame_time: Instant::now(),
         }
@@ -180,7 +192,7 @@ impl MyEguiApp {
 
 impl App for MyEguiApp {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
-        ctx.set_pixels_per_point(1.);
+        // ctx.set_pixels_per_point(1.);
         self.update_fps();
         self.mouse_wheel_scaling(ctx);
         self.mouse_drag_rotation(ctx);

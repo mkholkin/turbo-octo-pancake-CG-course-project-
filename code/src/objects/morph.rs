@@ -2,10 +2,7 @@ use crate::objects::Point;
 use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale, Triangle};
 use crate::objects::triangle_mesh::TriangleMesh;
 use crate::utils::math::lerp;
-use crate::utils::morphing::{
-    create_dcel_map, find_normals, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel,
-};
-use egui::debug_text::print;
+use crate::utils::morphing::{align_parametrized_meshes, create_dcel_map, find_normals, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel};
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
 pub type Lerp<T> = Box<dyn Fn(f64) -> T>;
@@ -36,6 +33,8 @@ impl Morph {
 
         let mut parametrized_mesh_b = obj_b.clone();
         parametrize_mesh(&mut parametrized_mesh_b);
+
+        align_parametrized_meshes(&mut parametrized_mesh_a, &mut parametrized_mesh_b);
 
         //2. Пересечение исходной и целевой сеток
         let dcel = create_dcel_map(&parametrized_mesh_a, &parametrized_mesh_b);
