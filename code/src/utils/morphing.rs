@@ -6,6 +6,7 @@ use crate::utils::triangles::barycentric;
 use delaunator::{Point, triangulate};
 use itertools::izip;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
+use nalgebra::{Matrix3, Matrix4, Point3, Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 
 const EPS: f64 = 1e-6;
@@ -113,7 +114,10 @@ fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<
         }
 
         // Главное условие остановки: Ориентации граней совпадают с оригинальными (нет вывернутых граней)
-        orientations = get_orientations(parametrized_mesh.vertices_world(), parametrized_mesh.triangles());
+        orientations = get_orientations(
+            parametrized_mesh.vertices_world(),
+            parametrized_mesh.triangles(),
+        );
         orientations_established = original_orientations.iter().eq(orientations.iter());
 
         round_no += 1;
