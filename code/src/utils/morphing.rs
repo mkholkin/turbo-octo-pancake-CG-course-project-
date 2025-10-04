@@ -6,7 +6,6 @@ use crate::utils::triangles::barycentric;
 use delaunator::{Point, triangulate};
 use itertools::izip;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
-use nalgebra::{Matrix3, Matrix4, Point3, Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 
 const EPS: f64 = 1e-6;
@@ -234,10 +233,7 @@ fn get_mesh_segments(mesh: &TriangleMesh) -> HashSet<Segment> {
 
 fn find_or_add_vertex(vertices: &mut Vec<Point3<f64>>, point: Point3<f64>) -> usize {
     for (i, v) in vertices.iter().enumerate() {
-        if (v.coords - point.coords)
-            .iter()
-            .all(|coord| *coord > EPS && *coord < EPS)
-        {
+        if (v.coords - point.coords).norm() < EPS {
             return i;
         }
     }
@@ -245,49 +241,142 @@ fn find_or_add_vertex(vertices: &mut Vec<Point3<f64>>, point: Point3<f64>) -> us
     vertices.push(point);
     new_index
 }
+
+/// Проверяет, лежит ли точка на дуге между двумя точками на единичной сфере
+fn point_lies_on_arc(point: &Point3<f64>, start: &Point3<f64>, end: &Point3<f64>) -> bool {
+    let p_vec = point.coords;
+    let start_vec = start.coords;
+    let end_vec = end.coords;
+
+    // Проверяем, лежит ли точка на большом круге, определяемом start и end
+    let cross_product = start_vec.cross(&end_vec);
+    if cross_product.norm() < EPS {
+        // start и end совпадают или противоположны
+        return (p_vec - start_vec).norm() < EPS || (p_vec - end_vec).norm() < EPS;
+    }
+
+    let scalar_triple_product = cross_product.dot(&p_vec);
+    if scalar_triple_product.abs() > EPS {
+        return false;
+    }
+
+    // Проверяем, что точка лежит между start и end на дуге
+    let angle_start_end = start_vec.dot(&end_vec).clamp(-1.0, 1.0).acos();
+    let angle_start_point = start_vec.dot(&p_vec).clamp(-1.0, 1.0).acos();
+    let angle_point_end = p_vec.dot(&end_vec).clamp(-1.0, 1.0).acos();
+
+    (angle_start_point + angle_point_end - angle_start_end).abs() < EPS
+}
+
+/// Создает карту уникальных вершин, объединяя совпадающие точки из двух сеток
+fn create_unified_vertex_map(
+    mesh_a: &TriangleMesh,
+    mesh_b: &TriangleMesh,
+) -> (Vec<Point3<f64>>, Vec<usize>, Vec<usize>) {
+    let mut unified_vertices = Vec::new();
+    let mut mapping_a = Vec::new();
+    let mut mapping_b = Vec::new();
+
+    // Добавляем вершины из первой сетки
+    for vertex in mesh_a.vertices_world() {
+        let idx = find_or_add_vertex(&mut unified_vertices, *vertex);
+        mapping_a.push(idx);
+    }
+
+    // Добавляем вершины из второй сетки, проверяя на дубликаты
+    for vertex in mesh_b.vertices_world() {
+        let idx = find_or_add_vertex(&mut unified_vertices, *vertex);
+        mapping_b.push(idx);
+    }
+
+    (unified_vertices, mapping_a, mapping_b)
+}
+
+/// Находит все вершины одной сетки, которые лежат на рёбрах другой сетки
+fn find_vertices_on_edges(
+    vertex_mapping: &[usize],
+    segments: &[Segment],
+    all_vertices: &[Point3<f64>],
+    segment_map: &mut HashMap<Segment, HashSet<usize>>,
+) {
+    for &vertex_idx in vertex_mapping {
+        let vertex = &all_vertices[vertex_idx];
+
+        for &segment in segments {
+            let start = &all_vertices[segment[0]];
+            let end = &all_vertices[segment[1]];
+
+            // Проверяем, лежит ли вершина на этом сегменте
+            if point_lies_on_arc(vertex, start, end)
+                && vertex_idx != segment[0]
+                && vertex_idx != segment[1]
+            {
+                segment_map
+                    .entry(segment)
+                    .or_insert_with(HashSet::new)
+                    .insert(vertex_idx);
+            }
+        }
+    }
+}
 /// Основная функция для построения DCEL из пересечения двух сеток.
-/// Примечание: Это заглушка для `build_dcel`, так как полная реализация очень сложна.
-/// Функция сосредоточена на определении уникальных сегментов и вершин.
+/// Корректно обрабатывает совпадающие вершины и случаи, когда вершина лежит на ребре.
 pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
-    // FIXME: здесь не учитываются вершины, которые могут быть одинаковыми в обеих сетках -> дублирование вершин
-    // FIXME: также не рассматриватеся случай, когда вершина лежит на ребре
-    // Объединяем все вершины из обеих сеток в один изменяемый список.
-    let mut all_vertices = mesh_a.vertices_world().clone();
-    all_vertices.extend(mesh_b.vertices_world().clone());
+    // 1. Создаем унифицированную карту вершин, избегая дублирования
+    let (mut all_vertices, mapping_a, mapping_b) = create_unified_vertex_map(mesh_a, mesh_b);
 
-    // Карта для хранения всех вершин, которые лежат на каждом отрезке.
-    // Ключ — это канонический отрезок ([usize; 2]), а значение — это набор индексов вершин.
-    let mut segment_map: HashMap<Segment, HashSet<usize>> = HashMap::new();
-
-    let segments_a = Vec::from_iter(get_mesh_segments(&mesh_a).into_iter());
-    // Корректируем индексы, чтобы они соответствовали объединенному списку вершин.
-    let segments_b: Vec<Segment> = get_mesh_segments(&mesh_b)
+    // 2. Получаем сегменты из обеих сеток с правильными индексами
+    let segments_a: Vec<Segment> = get_mesh_segments(mesh_a)
         .into_iter()
+        .map(|s| [mapping_a[s[0]], mapping_a[s[1]]])
         .map(|mut s| {
-            let offset = mesh_a.vertices().len();
-            s[0] += offset;
-            s[1] += offset;
+            s.sort_unstable();
             s
         })
         .collect();
 
-    // Добавляем все отрезки из первой сетки в карту
-    for s in &segments_a {
-        segment_map.entry(*s).or_insert_with(HashSet::new);
+    let segments_b: Vec<Segment> = get_mesh_segments(mesh_b)
+        .into_iter()
+        .map(|s| [mapping_b[s[0]], mapping_b[s[1]]])
+        .map(|mut s| {
+            s.sort_unstable();
+            s
+        })
+        .collect();
+
+    // 3. Карта для хранения всех вершин, которые лежат на каждом отрезке
+    let mut segment_map: HashMap<Segment, HashSet<usize>> = HashMap::new();
+
+    // Добавляем все отрезки в карту
+    for &s in &segments_a {
+        segment_map.entry(s).or_insert_with(HashSet::new);
+    }
+    for &s in &segments_b {
+        segment_map.entry(s).or_insert_with(HashSet::new);
     }
 
-    // Добавляем все отрезки из второй сетки в карту
-    for s in &segments_b {
-        segment_map.entry(*s).or_insert_with(HashSet::new);
-    }
+    // 4. Находим вершины, которые лежат на рёбрах другой сетки
+    // Проверяем вершины сетки A на рёбрах сетки B
+    find_vertices_on_edges(&mapping_a, &segments_b, &all_vertices, &mut segment_map);
 
-    // Находим точки пересечения между всеми дугами на единичной сфере.
-    for seg_a in segments_a {
+    // Проверяем вершины сетки B на рёбрах сетки A
+    find_vertices_on_edges(&mapping_b, &segments_a, &all_vertices, &mut segment_map);
+
+    // 5. Находим точки пересечения между дугами
+    for &seg_a in &segments_a {
         for &seg_b in &segments_b {
+            // Пропускаем, если сегменты имеют общие вершины
+            if seg_a[0] == seg_b[0]
+                || seg_a[0] == seg_b[1]
+                || seg_a[1] == seg_b[0]
+                || seg_a[1] == seg_b[1]
+            {
+                continue;
+            }
+
             let arc_1 = [&all_vertices[seg_a[0]], &all_vertices[seg_a[1]]];
             let arc_2 = [&all_vertices[seg_b[0]], &all_vertices[seg_b[1]]];
 
-            // Если найдено пересечение, добавляем новую вершину и отмечаем ее на обоих сегментах.
             if let Some(intersection_point) = intersect_arcs(arc_1, arc_2) {
                 let inter_idx = find_or_add_vertex(&mut all_vertices, intersection_point);
                 segment_map.get_mut(&seg_a).unwrap().insert(inter_idx);
@@ -296,15 +385,13 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
         }
     }
 
-    // Генерируем финальный список подотрезков на основе точек пересечения.
-    // Подотрезки образуются в результате разбиения исходных отрезков точками пересечения сеток.
+    // 6. Генерируем финальный список подотрезков
     let mut all_segments: HashSet<Segment> = HashSet::new();
 
-    // Итерируем по карте исходных сегментов и новых точек, которые на них лежат.
     for ([start_idx, end_idx], points_set) in segment_map.into_iter() {
         let mut points: Vec<usize> = points_set.into_iter().collect();
 
-        // Сортируем точки вдоль дуги на основе их удаления относительно начальной точки.
+        // Сортируем точки вдоль дуги на основе их расстояния от начальной точки
         let start_coords = all_vertices[start_idx].coords;
 
         points.sort_unstable_by(|&a_idx, &b_idx| {
@@ -316,18 +403,19 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
             dist_a.partial_cmp(&dist_b).unwrap()
         });
 
+        // Добавляем начальную и конечную вершины
         points.insert(0, start_idx);
         points.push(end_idx);
         points.dedup();
 
-        // Создаем новые подсегменты из отсортированного списка точек.
+        // Создаем новые подсегменты
         for i in 0..points.len() - 1 {
             let mut seg = [points[i], points[i + 1]];
             if seg[0] == seg[1] {
-                assert!(false);
-                continue;
+                continue; // Пропускаем вырожденные сегменты
             }
-            // Делаем сегмент каноническим, сортируя индексы.
+
+            // Делаем сегмент каноническим
             if seg[0] > seg[1] {
                 seg.swap(0, 1);
             }
@@ -474,7 +562,7 @@ fn find_enclosing_triangle(p: &Vertex, mesh: &TriangleMesh) -> (usize, Vector3<f
         }
     }
 
-    panic!("No triangle found. Impossible");
+    panic!("No triangle found. This should not happen for a closed mesh on a sphere.");
 }
 
 // Расположить рассчитать реальные координаты точке на сетке объекта
@@ -505,6 +593,7 @@ pub fn find_normals(
     parametrized_mesh: &TriangleMesh,
 ) -> Vec<Vector4<f64>> {
     let mut normals = Vec::new();
+
     for tri in triangles {
         let center = Point3::from(
             (parametrized_vertices[tri.0].coords
