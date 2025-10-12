@@ -1,3 +1,4 @@
+use crate::config::BACKGROUND_COLOR;
 use crate::objects::camera::Camera;
 use crate::objects::light::LightSource;
 use crate::objects::model3d::Model3D;
@@ -57,21 +58,17 @@ impl ZBufferPerformer {
         let max_y = (p1.y.max(p2.y).max(p3.y).round() as u32).min(self.height - 1);
 
         // Pre-calculate common components to avoid redundant calculations inside the loop.
-        let denom = (p2.y - p3.y) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.y - p3.y);
+        let denom = (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
 
         for y in min_y..=max_y {
             for x in min_x..=max_x {
                 // Calculate barycentric coordinates.
-                let bary_x_num =
-                    (p2.y - p3.y) * (x as f64 - p3.x) + (p3.x - p2.x) * (y as f64 - p3.y);
-                let bary_y_num =
-                    (p3.y - p1.y) * (x as f64 - p3.x) + (p1.x - p3.x) * (y as f64 - p3.y);
+                let u =
+                    ((p3.x - p2.x) * (y as f64 - p2.y) - (p3.y - p2.y) * (x as f64 - p2.x)) / denom;
+                let v =
+                    ((p1.x - p3.x) * (y as f64 - p3.y) - (p1.y - p3.y) * (x as f64 - p3.x)) / denom;
 
-                let bary = Point3::new(
-                    bary_x_num / denom,
-                    bary_y_num / denom,
-                    1.0 - bary_x_num / denom - bary_y_num / denom,
-                );
+                let bary = Point3::new(u, v, 1.0 - u - v);
 
                 // Check if the pixel is inside the triangle.
                 if bary.x >= 0.0 && bary.y >= 0.0 && bary.z >= 0.0 {
@@ -169,7 +166,7 @@ impl Renderer for ZBufferPerformer {
     fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
         let (width, height) = image.dimensions();
         self.reset(width, height);
-        image.fill(70);
+        image.pixels_mut().for_each(|px| *px = BACKGROUND_COLOR);
 
         for object in &scene.objects {
             self.draw_object(image, &**object, &scene.camera, &scene.light_source);
