@@ -172,4 +172,18 @@ impl Renderer for ZBufferPerformer {
             self.draw_object(image, &**object, &scene.camera, &scene.light_source);
         }
     }
+
+    fn render_single_object(
+        &mut self,
+        image: &mut RgbImage,
+        object: &dyn crate::objects::model3d::InteractiveModel,
+        camera: &crate::objects::camera::Camera,
+        light: &LightSource,
+    ) {
+        let (width, height) = image.dimensions();
+        self.reset(width, height);
+        image.pixels_mut().for_each(|px| *px = BACKGROUND_COLOR);
+
+        self.draw_object(image, object, camera, light);
+    }
 }

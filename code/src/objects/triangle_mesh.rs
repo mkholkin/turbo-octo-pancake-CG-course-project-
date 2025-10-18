@@ -7,7 +7,6 @@ use std::fs;
 use std::io::{BufRead, BufReader};
 use image::Rgb;
 use crate::utils::dcel::DCEL;
-
 #[derive(Clone)]
 pub struct TriangleMesh {
     pub vertices: Vec<Point>,
@@ -18,8 +17,8 @@ pub struct TriangleMesh {
     pub material: Material,
 
     pub model_matrix: Matrix4<f64>,
-    normals_need_update: bool,
-    vertices_need_update: bool,
+    pub normals_need_update: bool,
+    pub vertices_need_update: bool,
 }
 
 impl Default for TriangleMesh {

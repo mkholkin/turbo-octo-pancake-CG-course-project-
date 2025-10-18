@@ -5,7 +5,6 @@ use crate::utils::math::lerp;
 use crate::utils::morphing::{
     create_dcel_map, find_normals, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel,
 };
-use egui::debug_text::print;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
 pub type Lerp<T> = Box<dyn Fn(f64) -> T>;

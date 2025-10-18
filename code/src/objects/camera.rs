@@ -1,5 +1,6 @@
 use nalgebra::{Matrix4, Point3, Vector3};
 
+#[derive(Clone)]
 pub struct Camera {
     pub pos: Point3<f64>,
     look_at: Point3<f64>,

@@ -18,7 +18,6 @@ pub fn barycentric(
     let dot12 = v1.dot(&v2);
 
     // Calculate the inverse of the determinant.
-    // This is a common way to calculate barycentric coordinates without division by zero issues
     // if the triangle is degenerate (i.e., its vertices are collinear).
     let inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01);
 
@@ -30,4 +29,18 @@ pub fn barycentric(
     let u = 1.0 - v - w;
 
     Vector3::new(u, v, w)
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test() {
+        let a = Point3::new(1.0, 2.0, 0.);
+        let b = Point3::new(4.0, 5.0, 0.);
+        let c = Point3::new(0., 0., 0.);
+        let p = c.clone();
+
+        println!("{}", barycentric(&p, &a, &b, &c));
+    }
 }
