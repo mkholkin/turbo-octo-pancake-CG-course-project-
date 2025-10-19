@@ -34,7 +34,7 @@ impl MyEguiApp {
                 }
             }
 
-            self.update_frame(ctx);
+            self.needs_redraw = true; // Требуется перерисовка после масштабирования мышью
         }
     }
 
@@ -43,8 +43,14 @@ impl MyEguiApp {
         if !self.viewport_has_pointer {
             return;
         }
-        if ctx.input(|i| i.pointer.is_decidedly_dragging()) {
+        println!("viewport = {}", self.viewport_has_pointer);
+        println!("mouse down = {}", ctx.input(|i| i.pointer.primary_down()));
+        if ctx.input(|i| i.pointer.primary_down()) {
             let delta = ctx.input(|i| i.pointer.delta());
+
+            if delta.x == 0.0 && delta.y == 0.0 {
+                return;
+            }
 
             let rotation_x = delta.y * ROTATION_SENSITIVITY_FACTOR;
             let rotation_y = delta.x * ROTATION_SENSITIVITY_FACTOR;
@@ -80,7 +86,7 @@ impl MyEguiApp {
                 }
             }
 
-            self.update_frame(ctx);
+            self.needs_redraw = true; // Требуется перерисовка после поворота мышью
         }
     }
 }

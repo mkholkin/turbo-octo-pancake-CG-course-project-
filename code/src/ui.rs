@@ -198,6 +198,7 @@ impl MyEguiApp {
         // Обновляем объекты сцены при смене режима
         if old_view_mode != self.view_mode {
             self.update_scene_objects();
+            self.needs_redraw = true; // Требуется перерисовка при смене режима просмотра
         }
     }
 
@@ -220,6 +221,7 @@ impl MyEguiApp {
                 if let Some(ref mut morph) = self.morph_object {
                     morph.update(self.morph_phase);
                 }
+                self.needs_redraw = true; // Требуется перерисовка при изменении фазы морфинга
             }
         }
     }
@@ -277,6 +279,7 @@ impl MyEguiApp {
         // Обновляем сцену после изменений, если были изменения
         if material_changed {
             self.update_scene_objects();
+            self.needs_redraw = true; // Требуется перерисовка при изменении матери��ла
         }
     }
 

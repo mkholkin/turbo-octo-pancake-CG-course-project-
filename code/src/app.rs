@@ -53,6 +53,9 @@ pub struct MyEguiApp {
 
     // Error handling
     pub error_message: Option<String>,
+
+    // Флаг необходимости перерисовки
+    pub needs_redraw: bool,
 }
 
 impl Default for MyEguiApp {
@@ -97,12 +100,23 @@ impl Default for MyEguiApp {
             morph_created: false,
             morph_phase: 0.0,
             error_message: None,
+            needs_redraw: false,
         }
     }
 }
 
 impl MyEguiApp {
     pub fn update_frame(&mut self, ctx: &Context) {
+        // Проверяем, нужно ли перерисовывать кадр
+        if !self.needs_redraw {
+            // Если перерисовка не нужна, просто обновляем текстуру если она есть
+            if self.texture.is_some() {
+                return;
+            }
+            // Если текстуры нет, нужно её создать
+            self.needs_redraw = true;
+        }
+
         // Рендерим объект в зависимости от режима - разделяем логику чтобы избежать конфликта заимствований
         match self.view_mode {
             ViewMode::Source => {
@@ -162,6 +176,9 @@ impl MyEguiApp {
                 .unwrap()
                 .set(egui_image, Default::default());
         }
+
+        // Сбрасываем флаг после перерисовки
+        self.needs_redraw = false;
     }
 
     pub fn update_fps(&mut self) {
@@ -188,6 +205,7 @@ impl MyEguiApp {
                 }
                 self.update_scene_objects();
                 self.morph_created = false;
+                self.needs_redraw = true; // Требуется перерисовка после загрузки модели
             }
             Err(e) => {
                 eprintln!("Ошибка загрузки модели {}: {}", file_path, e);
@@ -213,6 +231,7 @@ impl MyEguiApp {
             self.morph_object = Some(morph);
             self.morph_created = true;
             self.update_scene_objects();
+            self.needs_redraw = true; // Требуется перерисовка после создания морфинга
         }
     }
 
@@ -239,6 +258,7 @@ impl MyEguiApp {
                 }
             }
         }
+        self.needs_redraw = true; // Требуется перерисовка после сброса трансформаций
     }
 
     pub fn apply_button_rotation(&mut self, x: f64, y: f64, z: f64) {
@@ -261,6 +281,7 @@ impl MyEguiApp {
                 }
             }
         }
+        self.needs_redraw = true; // Требуется перерисовка после поворота
     }
 
     pub fn apply_button_scale(&mut self, factor: f64) {
@@ -283,5 +304,6 @@ impl MyEguiApp {
                 }
             }
         }
+        self.needs_redraw = true; // Требуется перерисовка после масштабирования
     }
 }
