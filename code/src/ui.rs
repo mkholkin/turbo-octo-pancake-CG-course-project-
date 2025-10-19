@@ -38,8 +38,6 @@ impl MyEguiApp {
             // Режим просмотра сверху
             self.render_view_mode_controls(ui);
 
-            ui.separator();
-
             // Отображение изображения
             self.render_viewport(ui);
         });
@@ -189,16 +187,18 @@ impl MyEguiApp {
         ui.horizontal(|ui| {
             ui.radio_value(&mut self.view_mode, ViewMode::Source, "Исходный объект");
             ui.radio_value(&mut self.view_mode, ViewMode::Target, "Целевой объект");
-            ui.add_enabled(self.morph_created, egui::RadioButton::new(self.view_mode == ViewMode::Morph, "Морфинг"));
-            if ui.radio_value(&mut self.view_mode, ViewMode::Morph, "").clicked() && !self.morph_created {
-                self.view_mode = old_view_mode.clone(); // Возврат к предыдущему режиму если морфинг не создан
+            if self.morph_created {
+                ui.radio_value(&mut self.view_mode, ViewMode::Morph, "Морфинг");
+            } else {
+                // disabled radio button (отображается, но не кликабельна)
+                ui.add_enabled(false, egui::RadioButton::new(self.view_mode == ViewMode::Morph, "Морфинг"));
             }
         });
 
         // Обновляем объекты сцены при смене режима
         if old_view_mode != self.view_mode {
             self.update_scene_objects();
-            self.needs_redraw = true; // Требуется перерисовка при смене режима просмот��а
+            self.needs_redraw = true; // Требуется перерисовка при смене режима просмотра
         }
     }
 
@@ -325,8 +325,8 @@ impl MyEguiApp {
 
         ui.horizontal(|ui| {
             ui.label("Глянцевость:");
-            if ui.add(egui::Slider::new(&mut material.gloss, 1.0..=128.0)
-                .step_by(1.0)).changed() {
+            if ui.add(egui::Slider::new(&mut material.gloss, 0.1..=15.0)
+                .step_by(0.01)).changed() {
                 changed = true;
             }
         });

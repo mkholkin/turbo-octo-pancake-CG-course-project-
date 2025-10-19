@@ -40,11 +40,9 @@ impl MyEguiApp {
 
     pub fn mouse_drag_rotation(&mut self, ctx: &Context) {
         // Вращение работает только если курсор над окном просмотра
-        if !self.viewport_has_pointer {
-            return;
-        }
-        println!("viewport = {}", self.viewport_has_pointer);
-        println!("mouse down = {}", ctx.input(|i| i.pointer.primary_down()));
+        // if !self.viewport_has_pointer {
+        //     return;
+        // }
         if ctx.input(|i| i.pointer.primary_down()) {
             let delta = ctx.input(|i| i.pointer.delta());
 
