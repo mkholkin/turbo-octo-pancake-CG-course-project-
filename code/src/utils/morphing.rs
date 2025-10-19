@@ -8,6 +8,7 @@ use itertools::izip;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
+use egui::debug_text::print;
 
 const EPS: f64 = 1e-6;
 
@@ -71,7 +72,7 @@ fn get_orientations(vertices: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Vec<f6
 }
 
 fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<f64>) {
-    let epsilon_threshold = 1e-3;
+    let epsilon_threshold = 1e-2;
 
     let neighbors = collect_neighbors(parametrized_mesh);
 
@@ -126,7 +127,64 @@ fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<
     println!("{}", round_no);
 }
 
+fn find_inner_point(mesh: &TriangleMesh) -> Option<Vertex> {
+    let vertices = mesh.vertices_world();
+    let normals = mesh.normals();
+    let triangles = mesh.triangles();
+
+    // 1. Испускаем луч из середины первого попавшегося полигона в направлении внутренней нормали
+    let tri = triangles[0];
+    let ray_direction = normals[0].xyz().scale(-1.0);
+    let ray_origin =
+        (vertices[tri.0].coords + vertices[tri.1].coords + vertices[tri.2].coords) / 3.0;
+
+    // 2. Находим все пересечения луча с другими полигонами
+    let intersections = izip!(triangles, normals)
+        .skip(1)
+        .filter_map(|(tri, normal)| {
+            let normal = normal.xyz();
+            let t = (vertices[tri.0].coords - ray_origin).dot(&normal) / ray_direction.dot(&normal);
+            // println!("t = {}", t);
+            if t < f64::EPSILON || t.is_infinite() || t.is_nan() {
+                return None;
+            }
+            let intersection = Vertex::from(ray_origin + ray_direction.scale(t));
+            let bary = barycentric(
+                &intersection,
+                &vertices[tri.0],
+                &vertices[tri.1],
+                &vertices[tri.2],
+            );
+            // println!("intersection = {}", intersection);
+            // println!("bary = {}", bary);
+            if bary.x > -f64::EPSILON && bary.y > -f64::EPSILON && bary.z > -f64::EPSILON {
+                Some(intersection)
+            } else {
+                // println!("Point out of triangle");
+                None
+            }
+        });
+
+    // 3. Находим ближайшую точку пересечения к источнику луча
+    let closest_intersection = intersections.min_by(|a: &Vertex, b: &Vertex| {
+        let dist_a = (a.coords - ray_origin).norm_squared();
+        let dist_b = (b.coords - ray_origin).norm_squared();
+        dist_a.partial_cmp(&dist_b).unwrap()
+    });
+
+    // 4. Возвращаем точку посередине между источником луча и ближайшей точкой пересечения
+    match closest_intersection {
+        Some(point) => Some(Vertex::from((ray_origin + point.coords) / 2.0)),
+        None => None,
+    }
+}
+
 pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
+    let inner_point = find_inner_point(mesh).unwrap();
+    for v in mesh.vertices_world_mut() {
+        *v = Point3::from((v.coords - inner_point.coords).normalize());
+    }
+
     let vertices_world = mesh.vertices_world();
     let original_orientations = izip!(mesh.triangles(), mesh.normals())
         .map(|(tri, normal)| {
@@ -137,12 +195,6 @@ pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
             v0.cross(&v1).dot(&v2).signum()
         })
         .collect();
-
-    // TODO: нужно искать не центр масс, а внутреннюю точку
-    let center = center_of_mass(mesh);
-    for v in mesh.vertices_world_mut() {
-        *v = Point3::from((v.coords - center).normalize());
-    }
 
     relax_mesh(mesh, &original_orientations);
 
@@ -624,8 +676,9 @@ pub fn find_normals(
     parametrized_vertices: &Vec<Vertex>,
     triangles: &Vec<Triangle>,
     parametrized_mesh: &TriangleMesh,
+    normals: &[Vector4<f64>],
 ) -> Vec<Vector4<f64>> {
-    let mut normals = Vec::new();
+    let mut result_normals = Vec::new();
 
     for tri in triangles {
         let center = Point3::from(
@@ -636,8 +689,8 @@ pub fn find_normals(
         );
 
         let (tri_idx, _) = find_enclosing_triangle(&center, parametrized_mesh);
-        normals.push(parametrized_mesh.normals()[tri_idx]);
+        result_normals.push(normals[tri_idx]);
     }
 
-    normals
+    result_normals
 }

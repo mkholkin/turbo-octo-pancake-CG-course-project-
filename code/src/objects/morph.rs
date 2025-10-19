@@ -36,26 +36,36 @@ impl Morph {
         let mut parametrized_mesh_b = obj_b.clone();
         parametrize_mesh(&mut parametrized_mesh_b);
 
-        //2. Пересечение исходной и целевой сеток
+        // 2. Пересечение исходной и целевой сеток
         let dcel = create_dcel_map(&parametrized_mesh_a, &parametrized_mesh_b);
 
-        //3. Триангуляция граней пересеченной сетки
+        // 3. Триангуляция граней пересеченной сетки
         let triangles = triangulate_dcel(&dcel).unwrap_or_else(|e| {
             eprintln!("DEBUG: Morph::new - ошибка триангуляции DCEL: {}", e);
             eprintln!("ВНИМАНИЕ: Не удалось создать морфинг из-за ошибки триангуляции");
             Vec::new()
         });
 
-        //4. Находим положения точек на исходной и целевой сетках
+        // 4. Находим положения точек на исходной и целевой сетках
         let src_vertices =
             relocate_vertices_on_mesh(&dcel.vertices, &parametrized_mesh_a, obj_a.vertices_world());
         let dst_vertices =
             relocate_vertices_on_mesh(&dcel.vertices, &parametrized_mesh_b, obj_b.vertices_world());
 
-        let src_normals = find_normals(&dcel.vertices, &triangles, &parametrized_mesh_a);
-        let dst_normals = find_normals(&dcel.vertices, &triangles, &parametrized_mesh_b);
+        let src_normals = find_normals(
+            &dcel.vertices,
+            &triangles,
+            &parametrized_mesh_a,
+            obj_a.normals(),
+        );
+        let dst_normals = find_normals(
+            &dcel.vertices,
+            &triangles,
+            &parametrized_mesh_b,
+            obj_b.normals(),
+        );
 
-        //5. Строим интерполяции
+        // 5. Строим интерполяции
         let vertex_interpolations: Vec<VertexInterpolation> = src_vertices
             .into_iter()
             .zip(dst_vertices.into_iter())
