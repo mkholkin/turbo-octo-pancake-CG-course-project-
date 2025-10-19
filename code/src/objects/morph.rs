@@ -40,7 +40,11 @@ impl Morph {
         let dcel = create_dcel_map(&parametrized_mesh_a, &parametrized_mesh_b);
 
         //3. Триангуляция граней пересеченной сетки
-        let triangles = triangulate_dcel(&dcel);
+        let triangles = triangulate_dcel(&dcel).unwrap_or_else(|e| {
+            eprintln!("DEBUG: Morph::new - ошибка триангуляции DCEL: {}", e);
+            eprintln!("ВНИМАНИЕ: Не удалось создать морфинг из-за ошибки триангуляции");
+            Vec::new()
+        });
 
         //4. Находим положения точек на исходной и целевой сетках
         let src_vertices =

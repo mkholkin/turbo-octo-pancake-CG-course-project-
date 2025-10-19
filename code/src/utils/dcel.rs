@@ -73,7 +73,17 @@ impl DCEL {
         // 3. Связывание указателей `next` и `prev`.
         // Создаем циклы, которые определяют границы граней.
         for (key, outgoing_edges_indices) in edge_map {
-            assert!(outgoing_edges_indices.len() >= 2);
+            if outgoing_edges_indices.len() < 2 {
+                eprintln!(
+                    "DEBUG: DCEL::new - недостаточно исходящих рёбер для вершины {:?}",
+                    key
+                );
+                eprintln!("  количество рёбер: {}", outgoing_edges_indices.len());
+                panic!(
+                    "Вершина должна иметь минимум 2 исходящих ребра, получено: {}",
+                    outgoing_edges_indices.len()
+                );
+            }
 
             let n = outgoing_edges_indices.len();
             for i in 0..n {

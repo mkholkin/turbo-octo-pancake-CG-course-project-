@@ -42,7 +42,9 @@ impl TriangleMesh {
 
     pub fn update_vertices_world(&mut self) {
         for i in 0..self.vertices.len() {
-            if let Some(point) = Point3::from_homogeneous(self.model_matrix * self.vertices[i].to_homogeneous()) {
+            if let Some(point) =
+                Point3::from_homogeneous(self.model_matrix * self.vertices[i].to_homogeneous())
+            {
                 self.vertices_world[i] = point;
             }
         }
@@ -262,7 +264,15 @@ impl From<DCEL> for TriangleMesh {
     fn from(dcel: DCEL) -> Self {
         let mut mesh = Self::default();
 
-        mesh.triangles = triangulate_dcel(&dcel);
+        mesh.triangles = triangulate_dcel(&dcel).unwrap_or_else(|e| {
+            eprintln!(
+                "DEBUG: TriangleMesh::from(DCEL) - ошибка триангуляции: {}",
+                e
+            );
+            eprintln!("ВНИМАНИЕ: Не удалось триангулировать DCEL, создаётся пустая сетка");
+            Vec::new()
+        });
+
         mesh.vertices = dcel.vertices;
         mesh.vertices_world = mesh.vertices.clone();
         mesh.material.color = Rgb([0, 255, 0]);
