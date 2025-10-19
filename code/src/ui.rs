@@ -120,26 +120,26 @@ impl MyEguiApp {
         // Поворот
         ui.label("Поворот (градусы):");
         ui.horizontal(|ui| {
-            if ui.button("↻ X +15°").clicked() {
+            if ui.button("↺ X +15°").clicked() {
                 self.apply_button_rotation(15.0, 0.0, 0.0);
             }
-            if ui.button("↺ X -15°").clicked() {
+            if ui.button("↻ X -15°").clicked() {
                 self.apply_button_rotation(-15.0, 0.0, 0.0);
             }
         });
         ui.horizontal(|ui| {
-            if ui.button("↻ Y +15°").clicked() {
+            if ui.button("↺ Y +15°").clicked() {
                 self.apply_button_rotation(0.0, 15.0, 0.0);
             }
-            if ui.button("↺ Y -15°").clicked() {
+            if ui.button("↻ Y -15°").clicked() {
                 self.apply_button_rotation(0.0, -15.0, 0.0);
             }
         });
         ui.horizontal(|ui| {
-            if ui.button("↻ Z +15°").clicked() {
+            if ui.button("↺ Z +15°").clicked() {
                 self.apply_button_rotation(0.0, 0.0, 15.0);
             }
-            if ui.button("↺ Z -15°").clicked() {
+            if ui.button("↻ Z -15°").clicked() {
                 self.apply_button_rotation(0.0, 0.0, -15.0);
             }
         });

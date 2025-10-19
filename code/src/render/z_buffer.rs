@@ -1,7 +1,7 @@
 use crate::config::BACKGROUND_COLOR;
 use crate::objects::camera::Camera;
 use crate::objects::light::LightSource;
-use crate::objects::model3d::Model3D;
+use crate::objects::model3d::{InteractiveModel, Model3D};
 use crate::render::{Renderer, calculate_color};
 use crate::scene::Scene;
 use image::{Rgb, RgbImage};
@@ -71,7 +71,7 @@ impl ZBufferPerformer {
                 let bary = Point3::new(u, v, 1.0 - u - v);
 
                 // Check if the pixel is inside the triangle.
-                if bary.x >= 0.0 && bary.y >= 0.0 && bary.z >= 0.0 {
+                if bary.x > -f64::EPSILON && bary.y > -f64::EPSILON && bary.z > -f64::EPSILON {
                     let z = p1.z * bary.x + p2.z * bary.y + p3.z * bary.z;
 
                     // Perform the Z-buffer test.
@@ -176,14 +176,13 @@ impl Renderer for ZBufferPerformer {
     fn render_single_object(
         &mut self,
         image: &mut RgbImage,
-        object: &dyn crate::objects::model3d::InteractiveModel,
-        camera: &crate::objects::camera::Camera,
+        object: &dyn InteractiveModel,
+        camera: &Camera,
         light: &LightSource,
     ) {
         let (width, height) = image.dimensions();
         self.reset(width, height);
         image.pixels_mut().for_each(|px| *px = BACKGROUND_COLOR);
-
         self.draw_object(image, object, camera, light);
     }
 }

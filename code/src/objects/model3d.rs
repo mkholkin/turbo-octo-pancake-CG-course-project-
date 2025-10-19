@@ -45,7 +45,9 @@ pub trait Scale {
     fn scale(&mut self, scaling: f64);
 }
 
-pub trait InteractiveModel: Model3D + Rotate + Scale {}
+pub trait InteractiveModel: Model3D + Rotate + Scale {
+    fn reset_transformations(&mut self);
+}
 
 #[derive(Clone)]
 pub struct Material {

@@ -1,12 +1,10 @@
 use crate::objects::camera::Camera;
 use crate::objects::triangle_mesh::TriangleMesh;
-use std::time::Instant;
-use std::path::PathBuf;
 use rfd::FileDialog;
+use std::path::PathBuf;
+use std::time::Instant;
 
-use crate::config::{
-    ASPECT_RATIO, BACKGROUND_COLOR, FAR_PLANE, FOV_DEGREES, NEAR_PLANE,
-};
+use crate::config::{ASPECT_RATIO, BACKGROUND_COLOR, FAR_PLANE, FOV_DEGREES, NEAR_PLANE};
 use crate::objects::light::LightSource;
 use crate::objects::model3d::InteractiveModel;
 use crate::objects::morph::Morph;
@@ -67,7 +65,7 @@ impl Default for MyEguiApp {
         );
         let light_source = LightSource {
             pos: Point3::new(0., 0., 3.),
-            intensity: 10.,
+            intensity: 15.,
             color: Rgb::white(),
         };
 
@@ -105,25 +103,46 @@ impl MyEguiApp {
         match self.view_mode {
             ViewMode::Source => {
                 if let Some(ref mesh) = self.source_mesh {
-                    self.renderer.render_single_object(&mut self.frame, mesh, &self.scene.camera, &self.scene.light_source);
+                    self.renderer.render_single_object(
+                        &mut self.frame,
+                        mesh,
+                        &self.scene.camera,
+                        &self.scene.light_source,
+                    );
                 } else {
-                    self.frame.pixels_mut().for_each(|px| *px = BACKGROUND_COLOR);
+                    self.frame
+                        .pixels_mut()
+                        .for_each(|px| *px = BACKGROUND_COLOR);
                 }
-            },
+            }
             ViewMode::Target => {
                 if let Some(ref mesh) = self.target_mesh {
-                    self.renderer.render_single_object(&mut self.frame, mesh, &self.scene.camera, &self.scene.light_source);
+                    self.renderer.render_single_object(
+                        &mut self.frame,
+                        mesh,
+                        &self.scene.camera,
+                        &self.scene.light_source,
+                    );
                 } else {
-                    self.frame.pixels_mut().for_each(|px| *px = BACKGROUND_COLOR);
+                    self.frame
+                        .pixels_mut()
+                        .for_each(|px| *px = BACKGROUND_COLOR);
                 }
-            },
+            }
             ViewMode::Morph => {
                 if let Some(ref morph) = self.morph_object {
-                    self.renderer.render_single_object(&mut self.frame, morph.as_ref(), &self.scene.camera, &self.scene.light_source);
+                    self.renderer.render_single_object(
+                        &mut self.frame,
+                        morph.as_ref(),
+                        &self.scene.camera,
+                        &self.scene.light_source,
+                    );
                 } else {
-                    self.frame.pixels_mut().for_each(|px| *px = BACKGROUND_COLOR);
+                    self.frame
+                        .pixels_mut()
+                        .for_each(|px| *px = BACKGROUND_COLOR);
                 }
-            },
+            }
         }
 
         let egui_image = egui::ColorImage::from_rgb(
@@ -165,7 +184,7 @@ impl MyEguiApp {
                 }
                 self.update_scene_objects();
                 self.morph_created = false;
-            },
+            }
             Err(e) => eprintln!("Ошибка загрузки модели {}: {}", file_path, e),
         }
     }
@@ -196,35 +215,20 @@ impl MyEguiApp {
     }
 
     pub fn reset_current_object(&mut self) {
-        use nalgebra::Matrix4;
-
         match self.view_mode {
             ViewMode::Source => {
                 if let Some(ref mut mesh) = self.source_mesh {
-                    mesh.model_matrix = Matrix4::identity();
-                    mesh.normals_need_update = true;
-                    mesh.vertices_need_update = true;
-                    mesh.update_vertices_world();
-                    mesh.update_normals_world();
+                    mesh.reset_transformations();
                 }
             }
             ViewMode::Target => {
                 if let Some(ref mut mesh) = self.target_mesh {
-                    mesh.model_matrix = Matrix4::identity();
-                    mesh.normals_need_update = true;
-                    mesh.vertices_need_update = true;
-                    mesh.update_vertices_world();
-                    mesh.update_normals_world();
+                    mesh.reset_transformations();
                 }
             }
             ViewMode::Morph => {
-                // Для морфинга пересоздаем объект из текущих source и target с их текущими матрицами
-                if let (Some(source), Some(target)) = (&self.source_mesh, &self.target_mesh) {
-                    let morph = Box::new(Morph::new(source.clone(), target.clone()));
-                    self.morph_object = Some(morph);
-                    if let Some(ref mut morph) = self.morph_object {
-                        morph.update(self.morph_phase);
-                    }
+                if let Some(ref mut morph) = self.morph_object {
+                    morph.reset_transformations();
                 }
             }
         }

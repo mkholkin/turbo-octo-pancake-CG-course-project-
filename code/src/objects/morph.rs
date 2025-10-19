@@ -111,6 +111,7 @@ impl Morph {
     fn update_normals_world(&mut self) {
         for (nw, n) in self.normals_world.iter_mut().zip(self.normals.iter()) {
             *nw = self.model_matrix * n;
+            nw.normalize_mut();
         }
     }
 }
@@ -185,8 +186,15 @@ impl Rotate for Morph {
 impl Scale for Morph {
     fn scale(&mut self, scaling: f64) {
         self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
-        self.update_vertices_world()
+        self.update_vertices_world();
+        self.update_normals_world();
     }
 }
 
-impl InteractiveModel for Morph {}
+impl InteractiveModel for Morph {
+    fn reset_transformations(&mut self) {
+        self.model_matrix = Matrix4::identity();
+        self.update_vertices_world();
+        self.update_normals_world();
+    }
+}
