@@ -56,6 +56,10 @@ pub struct MyEguiApp {
 
     // Флаг необходимости перерисовки
     pub needs_redraw: bool,
+
+    // Текущие размеры viewport
+    pub viewport_width: u32,
+    pub viewport_height: u32,
 }
 
 impl Default for MyEguiApp {
@@ -101,6 +105,8 @@ impl Default for MyEguiApp {
             morph_phase: 0.0,
             error_message: None,
             needs_redraw: false,
+            viewport_width: IMG_WIDTH,
+            viewport_height: IMG_HEIGHT,
         }
     }
 }
@@ -117,7 +123,7 @@ impl MyEguiApp {
             self.needs_redraw = true;
         }
 
-        // Рендерим объект в зависимости от режима - разделяем логику чтобы избежать конфликта заимствований
+        // Рендерим объект в зависимости о�� режима - разделяем логику чтобы избежать конфликта заимствований
         match self.view_mode {
             ViewMode::Source => {
                 if let Some(ref mesh) = self.source_mesh {
@@ -305,5 +311,31 @@ impl MyEguiApp {
             }
         }
         self.needs_redraw = true; // Требуется перерисовка после масштабирования
+    }
+
+    pub fn update_viewport_size(&mut self, width: u32, height: u32) {
+        // Проверяем, изменился ли размер viewport
+        if self.viewport_width != width || self.viewport_height != height {
+            self.viewport_width = width;
+            self.viewport_height = height;
+
+            // Пересоздаем изображение с новым размером
+            self.frame = RgbImage::from_pixel(width, height, BACKGROUND_COLOR);
+
+            // Обновляем aspect ratio камеры
+            let new_aspect_ratio = width as f64 / height as f64;
+            self.scene.camera = Camera::new(
+                self.scene.camera.pos,
+                Point3::new(0.0, 0.0, 0.0),
+                Vector3::new(0.0, 1.0, 0.0),
+                FOV_DEGREES.to_radians(),
+                new_aspect_ratio,
+                NEAR_PLANE.into(),
+                FAR_PLANE,
+            );
+
+            // Помечаем что нужна перерисовка
+            self.needs_redraw = true;
+        }
     }
 }

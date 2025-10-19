@@ -76,7 +76,7 @@ impl MyEguiApp {
                     self.open_file_dialog(false);
                 }
 
-                // Показываем текущий выбранный файл
+                // Показываем текущий выбранный ф��йл
                 if !self.selected_source_file.is_empty() {
                     ui.label(format!("Выбран: {}", self.selected_source_file));
                 }
@@ -198,7 +198,7 @@ impl MyEguiApp {
         // Обновляем объекты сцены при смене режима
         if old_view_mode != self.view_mode {
             self.update_scene_objects();
-            self.needs_redraw = true; // Требуется перерисовка при смене режима просмотра
+            self.needs_redraw = true; // Требуется перерисовка при смене режима просмот��а
         }
     }
 
@@ -228,20 +228,24 @@ impl MyEguiApp {
 
     fn render_viewport(&mut self, ui: &mut Ui) {
         ui.separator();
+        
+        // Получаем доступное пространство для viewport
+        let available_size = ui.available_size();
+        
+        // Вычисляем максимально возможный размер изображения в пикселях
+        // Используем коэффициент масштабирования для высокого разрешения
+        let pixels_per_point = ui.ctx().pixels_per_point();
+        let viewport_width = (available_size.x * pixels_per_point) as u32;
+        let viewport_height = (available_size.y * pixels_per_point) as u32;
+        
+        // Обновляем размер viewport и камеру, если размер изменился
+        if viewport_width > 0 && viewport_height > 0 {
+            self.update_viewport_size(viewport_width, viewport_height);
+        }
+        
         if let Some(texture) = &self.texture {
-            let available_size = ui.available_size();
-            let texture_size = texture.size_vec2();
-            let aspect_ratio = texture_size.x / texture_size.y;
-
-            // Масштабируем изображение чтобы поместилось в доступное пространство
-            let display_size = if available_size.x / available_size.y > aspect_ratio {
-                egui::Vec2::new(available_size.y * aspect_ratio, available_size.y)
-            } else {
-                egui::Vec2::new(available_size.x, available_size.x / aspect_ratio)
-            };
-
-            // Рисуем изображение и получаем Response, чтобы определить, наведен ли курсор
-            let resp = ui.image((texture.id(), display_size));
+            // Отображаем изображение на весь доступный размер
+            let resp = ui.image((texture.id(), available_size));
             // Обновляем флаг наличия курсора над viewport
             self.viewport_has_pointer = resp.hovered();
         } else {
