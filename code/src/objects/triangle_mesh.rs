@@ -42,10 +42,16 @@ impl TriangleMesh {
 
     pub fn update_vertices_world(&mut self) {
         for i in 0..self.vertices.len() {
-            self.vertices_world[i] =
-                Point3::from_homogeneous(self.model_matrix * self.vertices[i].to_homogeneous())
-                    .unwrap()
+            if let Some(point) = Point3::from_homogeneous(self.model_matrix * self.vertices[i].to_homogeneous()) {
+                self.vertices_world[i] = point;
+            }
         }
+    }
+
+    pub fn reset_transformations(&mut self) {
+        self.model_matrix = Matrix4::identity();
+        self.update_vertices_world();
+        self.update_normals_world();
     }
 }
 

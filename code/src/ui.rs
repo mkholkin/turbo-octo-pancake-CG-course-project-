@@ -44,6 +44,21 @@ impl MyEguiApp {
             self.render_viewport(ui);
         });
 
+        // Модальное окно с ошибкой
+        if let Some(error_msg) = &self.error_message.clone() {
+            egui::Window::new("⚠ Ошибка")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label(error_msg);
+                    ui.separator();
+                    if ui.button("OK").clicked() {
+                        self.error_message = None;
+                    }
+                });
+        }
+
         // Обновляем кадр
         self.update_frame(ctx);
     }

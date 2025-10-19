@@ -50,6 +50,9 @@ pub struct MyEguiApp {
 
     // Morph animation state
     pub morph_phase: f64,
+
+    // Error handling
+    pub error_message: Option<String>,
 }
 
 impl Default for MyEguiApp {
@@ -93,6 +96,7 @@ impl Default for MyEguiApp {
             morph_object: None,
             morph_created: false,
             morph_phase: 0.0,
+            error_message: None,
         }
     }
 }
@@ -185,7 +189,10 @@ impl MyEguiApp {
                 self.update_scene_objects();
                 self.morph_created = false;
             }
-            Err(e) => eprintln!("Ошибка загрузки модели {}: {}", file_path, e),
+            Err(e) => {
+                eprintln!("Ошибка загрузки модели {}: {}", file_path, e);
+                self.error_message = Some(format!("Ошибка загрузки модели {}: {}", file_path, e));
+            },
         }
     }
 
