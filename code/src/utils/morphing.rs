@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::error::Error;
 
 const EPS: f64 = 1e-6;
+const VERTEX_MATCH_EPS: f64 = 1e-6;
 
 type Segment = [usize; 2];
 
@@ -234,7 +235,7 @@ fn get_mesh_segments(mesh: &TriangleMesh) -> HashSet<Segment> {
 
 fn find_or_add_vertex(vertices: &mut Vec<Point3<f64>>, point: Point3<f64>) -> usize {
     for (i, v) in vertices.iter().enumerate() {
-        if (v.coords - point.coords).norm() < EPS {
+        if (v.coords - point.coords).norm() < VERTEX_MATCH_EPS {
             return i;
         }
     }
@@ -325,6 +326,8 @@ fn find_vertices_on_edges(
 pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<DCEL, String> {
     // 1. Создаем унифицированную карту вершин, избегая дублирования
     let (mut all_vertices, mapping_a, mapping_b) = create_unified_vertex_map(mesh_a, mesh_b);
+
+    println!("{} {} {}", mesh_a.vertices.len(), mesh_b.vertices.len(), all_vertices.len());
 
     // 2. Получаем сегменты из обеих сеток с правильными индексами
     let segments_a: Vec<Segment> = get_mesh_segments(mesh_a)

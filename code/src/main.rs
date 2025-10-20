@@ -4,8 +4,6 @@ mod render;
 mod scene;
 mod utils;
 mod app;
-mod input_handlers;
-mod ui;
 
 use app::MyEguiApp;
 use eframe::egui::{Context};

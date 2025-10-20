@@ -1,5 +1,6 @@
+use super::state::{MyEguiApp, ViewMode};
 use crate::objects::model3d;
-use crate::app::{MyEguiApp, ViewMode};
+use crate::objects::model3d::Model3D;
 use eframe::egui::{Context, SidePanel, CentralPanel, Ui};
 
 impl MyEguiApp {
@@ -228,21 +229,21 @@ impl MyEguiApp {
 
     fn render_viewport(&mut self, ui: &mut Ui) {
         ui.separator();
-        
+
         // Получаем доступное пространство для viewport
         let available_size = ui.available_size();
-        
+
         // Вычисляем максимально возможный размер изображения в пикселях
         // Используем коэффициент масштабирования для высокого разрешения
         let pixels_per_point = ui.ctx().pixels_per_point();
         let viewport_width = (available_size.x * pixels_per_point) as u32;
         let viewport_height = (available_size.y * pixels_per_point) as u32;
-        
+
         // Обновляем размер viewport и камеру, если размер изменился
         if viewport_width > 0 && viewport_height > 0 {
             self.update_viewport_size(viewport_width, viewport_height);
         }
-        
+
         if let Some(texture) = &self.texture {
             // Отображаем изображение на весь доступный размер
             let resp = ui.image((texture.id(), available_size));

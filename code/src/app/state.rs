@@ -45,7 +45,7 @@ pub struct MyEguiApp {
     // Object states
     pub source_mesh: Option<TriangleMesh>,
     pub target_mesh: Option<TriangleMesh>,
-    pub morph_object: Option<Box<dyn InteractiveModel>>,
+    pub morph_object: Option<Morph>,
     pub morph_created: bool,
 
     // Morph animation state
@@ -112,6 +112,40 @@ impl Default for MyEguiApp {
 }
 
 impl MyEguiApp {
+    pub(super) fn get_current_view_object(&self) -> Option<&dyn InteractiveModel> {
+        match self.view_mode {
+            ViewMode::Source => self
+                .source_mesh
+                .as_ref()
+                .map(|mesh| mesh as &dyn InteractiveModel),
+            ViewMode::Target => self
+                .target_mesh
+                .as_ref()
+                .map(|mesh| mesh as &dyn InteractiveModel),
+            ViewMode::Morph => self
+                .morph_object
+                .as_ref()
+                .map(|morph| morph as &dyn InteractiveModel),
+        }
+    }
+
+    pub(super) fn get_current_view_object_mut(&mut self) -> Option<&mut dyn InteractiveModel> {
+        match self.view_mode {
+            ViewMode::Source => self
+                .source_mesh
+                .as_mut()
+                .map(|mesh| mesh as &mut dyn InteractiveModel),
+            ViewMode::Target => self
+                .target_mesh
+                .as_mut()
+                .map(|mesh| mesh as &mut dyn InteractiveModel),
+            ViewMode::Morph => self
+                .morph_object
+                .as_mut()
+                .map(|morph| morph as &mut dyn InteractiveModel),
+        }
+    }
+
     pub fn update_frame(&mut self, ctx: &Context) {
         // Проверяем, нужно ли перерисовывать кадр
         if !self.needs_redraw {
@@ -123,7 +157,7 @@ impl MyEguiApp {
             self.needs_redraw = true;
         }
 
-        // Рендерим объект в зависимости от режима - разделяем логику чтобы избежать конфликта заимствований
+        // Рендерим объект в зависимости от режима просмотра
         match self.view_mode {
             ViewMode::Source => {
                 if let Some(ref mesh) = self.source_mesh {
@@ -157,7 +191,7 @@ impl MyEguiApp {
                 if let Some(ref morph) = self.morph_object {
                     self.renderer.render_single_object(
                         &mut self.frame,
-                        morph.as_ref(),
+                        morph,
                         &self.scene.camera,
                         &self.scene.light_source,
                     );
@@ -234,7 +268,7 @@ impl MyEguiApp {
         if let (Some(source), Some(target)) = (&self.source_mesh, &self.target_mesh) {
             match Morph::new(source.clone(), target.clone()) {
                 Ok(morph) => {
-                    self.morph_object = Some(Box::new(morph));
+                    self.morph_object = Some(morph);
                     self.morph_created = true;
                     self.update_scene_objects();
                     self.needs_redraw = true; // Требуется перерисовка после создания морфинга
@@ -256,22 +290,9 @@ impl MyEguiApp {
     }
 
     pub fn reset_current_object(&mut self) {
-        match self.view_mode {
-            ViewMode::Source => {
-                if let Some(ref mut mesh) = self.source_mesh {
-                    mesh.reset_transformations();
-                }
-            }
-            ViewMode::Target => {
-                if let Some(ref mut mesh) = self.target_mesh {
-                    mesh.reset_transformations();
-                }
-            }
-            ViewMode::Morph => {
-                if let Some(ref mut morph) = self.morph_object {
-                    morph.reset_transformations();
-                }
-            }
+        let object_to_reset = self.get_current_view_object_mut();
+        if let Some(object_to_reset) = object_to_reset {
+            object_to_reset.reset_transformations();
         }
         self.needs_redraw = true; // Требуется перерисовка после сброса трансформаций
     }
@@ -279,22 +300,8 @@ impl MyEguiApp {
     pub fn apply_button_rotation(&mut self, x: f64, y: f64, z: f64) {
         use crate::objects::model3d::Rotate;
 
-        match self.view_mode {
-            ViewMode::Source => {
-                if let Some(ref mut mesh) = self.source_mesh {
-                    mesh.rotate((x.to_radians(), y.to_radians(), z.to_radians()));
-                }
-            }
-            ViewMode::Target => {
-                if let Some(ref mut mesh) = self.target_mesh {
-                    mesh.rotate((x.to_radians(), y.to_radians(), z.to_radians()));
-                }
-            }
-            ViewMode::Morph => {
-                if let Some(ref mut morph) = self.morph_object {
-                    morph.rotate((x.to_radians(), y.to_radians(), z.to_radians()));
-                }
-            }
+        if let Some(object) = self.get_current_view_object_mut() {
+            object.rotate((x.to_radians(), y.to_radians(), z.to_radians()));
         }
         self.needs_redraw = true; // Требуется перерисовка после поворота
     }
@@ -302,22 +309,8 @@ impl MyEguiApp {
     pub fn apply_button_scale(&mut self, factor: f64) {
         use crate::objects::model3d::Scale;
 
-        match self.view_mode {
-            ViewMode::Source => {
-                if let Some(ref mut mesh) = self.source_mesh {
-                    mesh.scale(factor);
-                }
-            }
-            ViewMode::Target => {
-                if let Some(ref mut mesh) = self.target_mesh {
-                    mesh.scale(factor);
-                }
-            }
-            ViewMode::Morph => {
-                if let Some(ref mut morph) = self.morph_object {
-                    morph.scale(factor);
-                }
-            }
+        if let Some(object) = self.get_current_view_object_mut() {
+            object.scale(factor);
         }
         self.needs_redraw = true; // Требуется перерисовка после масштабирования
     }
