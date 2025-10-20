@@ -141,7 +141,7 @@ pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
     // TODO: нужно искать не центр масс, а внутреннюю точку
     let center = center_of_mass(mesh);
     for v in mesh.vertices_world_mut() {
-        *v = Point3::from((v.coords - center).normalize());
+        *v = (v.coords - center).normalize().into();
     }
 
     relax_mesh(mesh, &original_orientations);
@@ -322,7 +322,7 @@ fn find_vertices_on_edges(
 }
 /// Основная функция для построения DCEL из пересечения двух сеток.
 /// Корректно обрабатывает совпадающие вершины и случаи, когда вершина лежит на ребре.
-pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
+pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<DCEL, String> {
     // 1. Создаем унифицированную карту вершин, избегая дублирования
     let (mut all_vertices, mapping_a, mapping_b) = create_unified_vertex_map(mesh_a, mesh_b);
 
@@ -426,7 +426,7 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
     }
 
     // TODO: возможно передавать слайсом или как-то еще чтобы не копировать лишний раз
-    DCEL::new(all_vertices, all_segments.into_iter().collect())
+    DCEL::new(all_vertices, all_segments.into_iter().collect()).map_err(|e| e.to_string())
 }
 
 /// Триангулирует плоскую грань многогранника с использованием триангуляции Делоне.

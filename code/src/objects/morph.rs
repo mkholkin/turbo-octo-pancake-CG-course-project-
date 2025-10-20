@@ -28,7 +28,7 @@ pub struct Morph {
 }
 
 impl Morph {
-    pub fn new(obj_a: TriangleMesh, obj_b: TriangleMesh) -> Self {
+    pub fn new(obj_a: TriangleMesh, obj_b: TriangleMesh) -> Result<Self, String> {
         // 1. Параметризация исходных сеток
         let mut parametrized_mesh_a = obj_a.clone();
         parametrize_mesh(&mut parametrized_mesh_a);
@@ -37,14 +37,12 @@ impl Morph {
         parametrize_mesh(&mut parametrized_mesh_b);
 
         //2. Пересечение исходной и целевой сеток
-        let dcel = create_dcel_map(&parametrized_mesh_a, &parametrized_mesh_b);
+        let dcel = create_dcel_map(&parametrized_mesh_a, &parametrized_mesh_b)?;
 
         //3. Триангуляция граней пересеченной сетки
-        let triangles = triangulate_dcel(&dcel).unwrap_or_else(|e| {
-            eprintln!("DEBUG: Morph::new - ошибка триангуляции DCEL: {}", e);
-            eprintln!("ВНИМАНИЕ: Не удалось создать морфинг из-за ошибки триангуляции");
-            Vec::new()
-        });
+        let triangles = triangulate_dcel(&dcel).map_err(|e| {
+            format!("Ошибка триангуляции DCEL: {}", e)
+        })?;
 
         //4. Находим положения точек на исходной и целевой сетках
         let src_vertices =
@@ -90,7 +88,7 @@ impl Morph {
         // Строим материал
         let material = material_interpolation(0.);
 
-        Morph {
+        Ok(Morph {
             vertices,
             vertices_world,
             triangles,
@@ -101,7 +99,7 @@ impl Morph {
             normals_interpolations,
             material_interpolation,
             model_matrix: Matrix4::identity(),
-        }
+        })
     }
 }
 

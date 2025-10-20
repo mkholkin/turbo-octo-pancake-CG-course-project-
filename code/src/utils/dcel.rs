@@ -25,7 +25,7 @@ pub struct DCEL {
 }
 
 impl DCEL {
-    pub fn new(vertices: Vec<Vertex>, connections: Vec<[usize; 2]>) -> Self {
+    pub fn new(vertices: Vec<Vertex>, connections: Vec<[usize; 2]>) -> Result<Self, String> {
         // let mut dcel = DCEL::default();
         // dcel.vertices = vertices;
 
@@ -74,15 +74,11 @@ impl DCEL {
         // Создаем циклы, которые определяют границы граней.
         for (key, outgoing_edges_indices) in edge_map {
             if outgoing_edges_indices.len() < 2 {
-                eprintln!(
-                    "DEBUG: DCEL::new - недостаточно исходящих рёбер для вершины {:?}",
-                    key
-                );
-                eprintln!("  количество рёбер: {}", outgoing_edges_indices.len());
-                panic!(
-                    "Вершина должна иметь минимум 2 исходящих ребра, получено: {}",
+                return Err(format!(
+                    "Вершина {} должна иметь минимум 2 исходящих ребра, получено: {}",
+                    key,
                     outgoing_edges_indices.len()
-                );
+                ));
             }
 
             let n = outgoing_edges_indices.len();
@@ -121,7 +117,7 @@ impl DCEL {
             faces,
         };
 
-        dcel
+        Ok(dcel)
     }
 
     pub fn get_face_vertices(&self, face_idx: usize) -> Vec<usize> {

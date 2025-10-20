@@ -123,7 +123,7 @@ impl MyEguiApp {
             self.needs_redraw = true;
         }
 
-        // Рендерим объект в зависимости о�� режима - разделяем логику чтобы избежать конфликта заимствований
+        // Рендерим объект в зависимости от режима - разделяем логику чтобы избежать конфликта заимствований
         match self.view_mode {
             ViewMode::Source => {
                 if let Some(ref mesh) = self.source_mesh {
@@ -196,8 +196,7 @@ impl MyEguiApp {
 
     pub fn load_mesh_from_path(&mut self, file_path: &str, is_target: bool) {
         match TriangleMesh::from_obj(file_path) {
-            Ok(mut mesh) => {
-                mesh.material.specular_reflectance_factor = 0.0;
+            Ok(mesh) => {
                 if is_target {
                     self.target_mesh = Some(mesh);
                     if let Some(file_name) = PathBuf::from(file_path).file_name() {
@@ -216,7 +215,7 @@ impl MyEguiApp {
             Err(e) => {
                 eprintln!("Ошибка загрузки модели {}: {}", file_path, e);
                 self.error_message = Some(format!("Ошибка загрузки модели {}: {}", file_path, e));
-            },
+            }
         }
     }
 
@@ -233,11 +232,21 @@ impl MyEguiApp {
 
     pub fn create_morph_object(&mut self) {
         if let (Some(source), Some(target)) = (&self.source_mesh, &self.target_mesh) {
-            let morph = Box::new(Morph::new(source.clone(), target.clone()));
-            self.morph_object = Some(morph);
-            self.morph_created = true;
-            self.update_scene_objects();
-            self.needs_redraw = true; // Требуется перерисовка после создания морфинга
+            match Morph::new(source.clone(), target.clone()) {
+                Ok(morph) => {
+                    self.morph_object = Some(Box::new(morph));
+                    self.morph_created = true;
+                    self.update_scene_objects();
+                    self.needs_redraw = true; // Требуется перерисовка после создания морфинга
+                }
+                Err(e) => {
+                    eprintln!("Ошибка создания морфинга: {}", e);
+                    self.error_message = Some(
+                        "Не удалось создать морфинг: сетка повреждена или не замкнута)".into(),
+                    );
+                    self.morph_created = false;
+                }
+            }
         }
     }
 
