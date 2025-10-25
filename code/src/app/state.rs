@@ -298,8 +298,6 @@ impl MyEguiApp {
     }
 
     pub fn apply_button_rotation(&mut self, x: f64, y: f64, z: f64) {
-        use crate::objects::model3d::Rotate;
-
         if let Some(object) = self.get_current_view_object_mut() {
             object.rotate((x.to_radians(), y.to_radians(), z.to_radians()));
         }
@@ -307,8 +305,6 @@ impl MyEguiApp {
     }
 
     pub fn apply_button_scale(&mut self, factor: f64) {
-        use crate::objects::model3d::Scale;
-
         if let Some(object) = self.get_current_view_object_mut() {
             object.scale(factor);
         }

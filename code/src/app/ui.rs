@@ -34,7 +34,7 @@ impl MyEguiApp {
 
         // Центральная панель с окном просмотра
         CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Морфинг 3D объектов");
+            ui.heading("Морфинг фруктов");
 
             // Режим просмотра сверху
             self.render_view_mode_controls(ui);

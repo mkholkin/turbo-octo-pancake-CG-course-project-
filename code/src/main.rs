@@ -14,8 +14,6 @@ impl App for MyEguiApp {
         self.update_fps();
         self.mouse_wheel_scaling(ctx);
         self.mouse_drag_rotation(ctx);
-
-        // UI теперь создается внутри метода render_ui
         self.render_ui(ctx);
 
         ctx.request_repaint();
@@ -26,7 +24,7 @@ fn main() -> Result<(), eframe::Error> {
     let app = MyEguiApp::default();
     let native_options = NativeOptions::default();
     eframe::run_native(
-        "Морфинг 3D объектов",
+        "Морфинг фруктов",
         native_options,
         Box::new(|_cc| Ok(Box::new(app))),
     )
