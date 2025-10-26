@@ -3,7 +3,8 @@ use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale
 use crate::objects::triangle_mesh::TriangleMesh;
 use crate::utils::math::lerp;
 use crate::utils::morphing::{
-    create_dcel_map, find_normals, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel,
+    create_dcel_map, create_supermesh, find_normals, parametrize_mesh, relocate_vertices_on_mesh,
+    triangulate_dcel,
 };
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
@@ -28,42 +29,44 @@ pub struct Morph {
 }
 
 impl Morph {
-    pub fn new(obj_a: TriangleMesh, obj_b: TriangleMesh) -> Result<Self, String> {
+    pub fn new(source_object: TriangleMesh, target_object: TriangleMesh) -> Result<Self, String> {
         // 1. Параметризация исходных сеток
-        let mut parametrized_mesh_a = obj_a.clone();
-        parametrize_mesh(&mut parametrized_mesh_a);
+        let mut parametrized_source_mesh = source_object.clone();
+        parametrize_mesh(&mut parametrized_source_mesh);
 
-        let mut parametrized_mesh_b = obj_b.clone();
-        parametrize_mesh(&mut parametrized_mesh_b);
+        let mut parametrized_target_mesh = target_object.clone();
+        parametrize_mesh(&mut parametrized_target_mesh);
 
-        // 2. Пересечение исходной и целевой сеток
-        let dcel = create_dcel_map(&parametrized_mesh_a, &parametrized_mesh_b)?;
+        // 2. Построение суперсетки
+        let (vertices, triangles) =
+            create_supermesh(&parametrized_source_mesh, &parametrized_target_mesh)?;
 
-        // 3. Триангуляция граней пересеченной сетки
-        let triangles = triangulate_dcel(&dcel).map_err(|e| {
-            format!("Ошибка триангуляции DCEL: {}", e)
-        })?;
-
-        // 4. Находим положения точек на исходной и целевой сетках
-        let src_vertices =
-            relocate_vertices_on_mesh(&dcel.vertices, &parametrized_mesh_a, obj_a.vertices_world());
-        let dst_vertices =
-            relocate_vertices_on_mesh(&dcel.vertices, &parametrized_mesh_b, obj_b.vertices_world());
+        // 3. Находим положения точек на исходной и целевой сетках
+        let src_vertices = relocate_vertices_on_mesh(
+            &vertices,
+            &parametrized_source_mesh,
+            source_object.vertices_world(),
+        );
+        let dst_vertices = relocate_vertices_on_mesh(
+            &vertices,
+            &parametrized_target_mesh,
+            target_object.vertices_world(),
+        );
 
         let src_normals = find_normals(
-            &dcel.vertices,
+            &vertices,
             &triangles,
-            &parametrized_mesh_a,
-            obj_a.normals(),
+            &parametrized_source_mesh,
+            source_object.normals(),
         );
         let dst_normals = find_normals(
-            &dcel.vertices,
+            &vertices,
             &triangles,
-            &parametrized_mesh_b,
-            obj_b.normals(),
+            &parametrized_target_mesh,
+            target_object.normals(),
         );
 
-        // 5. Строим интерполяции
+        // 4. Строим интерполяции
         let vertex_interpolations: Vec<VertexInterpolation> = src_vertices
             .into_iter()
             .zip(dst_vertices.into_iter())
@@ -80,22 +83,22 @@ impl Morph {
             })
             .collect();
 
-        let src_material = obj_a.material().clone();
-        let dst_material = obj_b.material().clone();
+        let src_material = source_object.material().clone();
+        let dst_material = target_object.material().clone();
         let material_interpolation: MaterialInterpolation =
             Box::new(move |t: f64| Material::lerp(&src_material, &dst_material, t));
 
-        // 6. Строим интерполяции при t=0
-        // Строим вершины
+        // 5. Строим интерполяции при t=0
+        // 5.1 Строим вершины
         let vertices: Vec<Point> = vertex_interpolations.iter().map(|lerp| lerp(0.)).collect();
         let vertices_world = vertices.clone();
 
-        // Строим нормали
+        // 5.2 Строим нормали
         let normals: Vec<Vector4<f64>> =
             normals_interpolations.iter().map(|lerp| lerp(0.)).collect();
         let normals_world = normals.clone();
 
-        // Строим материал
+        // 5.3 Строим материал
         let material = material_interpolation(0.);
 
         Ok(Morph {

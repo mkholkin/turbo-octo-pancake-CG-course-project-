@@ -496,7 +496,7 @@ fn triangulate_face(face_vertices: &Vec<&Vertex>) -> Result<Vec<usize>, Box<dyn 
             "Грань должна содержать минимум 3 вершины, получено: {}",
             face_vertices.len()
         )
-            .into());
+        .into());
     }
 
     // 1. Находим нормаль к грани многогранника
@@ -604,6 +604,20 @@ pub fn triangulate_dcel(dcel: &DCEL) -> Result<Vec<Triangle>, Box<dyn Error>> {
     }
 
     Ok(triangles)
+}
+
+pub fn create_supermesh(
+    parametrized_source_mesh: &TriangleMesh,
+    parametrized_target_mesh: &TriangleMesh,
+) -> Result<(Vec<Vertex>, Vec<Triangle>), String> {
+    // 1. Пересечение исходной и целевой сеток
+    let dcel = create_dcel_map(parametrized_source_mesh, parametrized_target_mesh)?;
+
+    // 2. Триангуляция граней пересеченной сетки
+    let triangles =
+        triangulate_dcel(&dcel).map_err(|e| format!("Ошибка триангуляции DCEL: {}", e))?;
+
+    Ok((dcel.vertices, triangles))
 }
 
 // Найти треугольник на сетке, которому принадлежит точка.
