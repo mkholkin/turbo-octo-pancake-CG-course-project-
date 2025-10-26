@@ -31,16 +31,56 @@ impl ZBufferPerformer {
         self.z_buffer.fill(f64::INFINITY);
     }
 
-    /// Sets the depth value at a specific coordinate.
+    /// Устанавливает значение глубины в указанных координатах.
     fn set_depth(&mut self, x: u32, y: u32, depth: f64) {
         let index = (y * self.width + x) as usize;
         self.z_buffer[index] = depth;
     }
 
-    /// Gets the depth value at a specific coordinate.
+    /// Получает значение глубины в указанных координатах.
     fn get_depth(&self, x: u32, y: u32) -> f64 {
         let index = (y * self.width + x) as usize;
         self.z_buffer[index]
+    }
+
+    /// Вычисляет матрицу преобразования вьюпорта для заданных размеров изображения.
+    ///
+    /// Матрица преобразует нормализованные координаты устройства (NDC) в пространство экрана.
+    fn calculate_viewport_matrix(width: u32, height: u32) -> Matrix4<f64> {
+        Matrix4::new(
+            width as f64 / 2.,
+            0.,
+            0.,
+            width as f64 / 2.,
+            0.,
+            -(height as f64 / 2.),
+            0.,
+            height as f64 / 2.,
+            0.,
+            0.,
+            1.,
+            0.,
+            0.,
+            0.,
+            0.,
+            1.,
+        )
+    }
+
+    /// Преобразует вершины модели в пространство изображения.
+    ///
+    /// Применяет последовательность преобразований: модель -> вид -> проекция -> вьюпорт.
+    fn transform_vertices_to_screen(
+        vertices: &[Point3<f64>],
+        mvpv_matrix: &Matrix4<f64>,
+    ) -> Vec<Point3<f64>> {
+        vertices
+            .iter()
+            .map(|v| {
+                Point3::from_homogeneous(mvpv_matrix * v.to_homogeneous())
+                    .expect("Perspective division failed.")
+            })
+            .collect()
     }
 
     fn draw_triangle(
@@ -51,18 +91,18 @@ impl ZBufferPerformer {
     ) {
         let [p1, p2, p3] = *tri;
 
-        // Find the bounding box, clamping to the image dimensions.
+        // Находим ограничивающий прямоугольник, ограничивая размерами изображения.
         let min_x = (p1.x.min(p2.x).min(p3.x).round() as u32).max(0);
         let max_x = (p1.x.max(p2.x).max(p3.x).round() as u32).min(self.width - 1);
         let min_y = (p1.y.min(p2.y).min(p3.y).round() as u32).max(0);
         let max_y = (p1.y.max(p2.y).max(p3.y).round() as u32).min(self.height - 1);
 
-        // Pre-calculate common components to avoid redundant calculations inside the loop.
+        // Предварительно вычисляем общие компоненты, чтобы избежать избыточных вычислений в цикле.
         let denom = (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
 
         for y in min_y..=max_y {
             for x in min_x..=max_x {
-                // Calculate barycentric coordinates.
+                // Вычисляем барицентрические координаты.
                 let u =
                     ((p3.x - p2.x) * (y as f64 - p2.y) - (p3.y - p2.y) * (x as f64 - p2.x)) / denom;
                 let v =
@@ -70,15 +110,15 @@ impl ZBufferPerformer {
 
                 let bary = Point3::new(u, v, 1.0 - u - v);
 
-                // Check if the pixel is inside the triangle.
+                // Проверяем, находится ли пиксель внутри треугольника.
                 if bary.x > -f64::EPSILON && bary.y > -f64::EPSILON && bary.z > -f64::EPSILON {
                     let z = p1.z * bary.x + p2.z * bary.y + p3.z * bary.z;
 
-                    // Perform the Z-buffer test.
+                    // Выполняем проверку по Z-буферу.
                     if z < self.get_depth(x, y) {
                         self.set_depth(x, y, z);
 
-                        // Interpolate colors correctly for each channel.
+                        // Интерполируем цвета корректно для каждого канала.
                         let r = (bary.x * tri_colors[0].0[0] as f64
                             + bary.y * tri_colors[1].0[0] as f64
                             + bary.z * tri_colors[2].0[0] as f64)
@@ -106,38 +146,15 @@ impl ZBufferPerformer {
         camera: &Camera,
         light_source: &LightSource,
     ) {
-        // Calculate the MVPV matrix once
         let (width, height) = image.dimensions();
         let mvp_matrix = camera.camera_matrix * model.model_matrix();
-        let viewport_matrix = Matrix4::new(
-            width as f64 / 2.,
-            0.,
-            0.,
-            width as f64 / 2.,
-            0.,
-            -(height as f64 / 2.),
-            0.,
-            height as f64 / 2.,
-            0.,
-            0.,
-            1.,
-            0.,
-            0.,
-            0.,
-            0.,
-            1.,
-        );
+        let viewport_matrix = Self::calculate_viewport_matrix(width, height);
         let mvpv_matrix = viewport_matrix * mvp_matrix;
 
-        // Transform the world-space vertices once
-        let camera_dim_v: Vec<Point3<f64>> = model
-            .vertices()
-            .iter()
-            .map(|v| {
-                Point3::from_homogeneous(mvpv_matrix * v.to_homogeneous())
-                    .expect("Perspective division failed.")
-            })
-            .collect();
+        let screen_vertices: Vec<Point3<f64>> = Self::transform_vertices_to_screen(
+            model.vertices(),
+            &mvpv_matrix,
+        );
 
         for (i, tri) in model.triangles().iter().enumerate() {
             let tri_colors = [tri.0, tri.1, tri.2].map(|v_idx| {
@@ -153,15 +170,16 @@ impl ZBufferPerformer {
             self.draw_triangle(
                 image,
                 &[
-                    camera_dim_v[tri.0],
-                    camera_dim_v[tri.1],
-                    camera_dim_v[tri.2],
+                    screen_vertices[tri.0],
+                    screen_vertices[tri.1],
+                    screen_vertices[tri.2],
                 ],
                 &tri_colors,
             );
         }
     }
 }
+
 impl Renderer for ZBufferPerformer {
     fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
         let (width, height) = image.dimensions();
