@@ -147,9 +147,9 @@ fn find_inner_point(mesh: &TriangleMesh) -> Option<Vertex> {
             if t < f64::EPSILON || t.is_infinite() || t.is_nan() {
                 return None;
             }
-            
+
             let intersection = Vertex::from(ray_origin + ray_direction.scale(t));
-            
+
             let bary = barycentric(
                 &intersection,
                 &vertices[tri.0],
@@ -357,7 +357,7 @@ fn find_vertices_on_edges(
             let start = &all_vertices[segment[0]];
             let end = &all_vertices[segment[1]];
 
-            // Проверяем, лежит ли вершина на этом сегменте
+            // Проверяем, лежит ли вершина на этой дуге
             if point_lies_on_arc(vertex, start, end)
                 && vertex_idx != segment[0]
                 && vertex_idx != segment[1]
@@ -376,31 +376,36 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<D
     // 1. Создаем унифицированную карту вершин, избегая дублирования
     let (mut all_vertices, mapping_a, mapping_b) = create_unified_vertex_map(mesh_a, mesh_b);
 
-    println!("{} {} {}", mesh_a.vertices.len(), mesh_b.vertices.len(), all_vertices.len());
+    println!(
+        "{} {} {}",
+        mesh_a.vertices.len(),
+        mesh_b.vertices.len(),
+        all_vertices.len()
+    );
 
     // 2. Получаем сегменты из обеих сеток с правильными индексами
     let segments_a: Vec<Segment> = get_mesh_segments(mesh_a)
         .into_iter()
-        .map(|s| [mapping_a[s[0]], mapping_a[s[1]]])
-        .map(|mut s| {
-            s.sort_unstable();
-            s
+        .map(|s| {
+            let mut mapped_segment = [mapping_a[s[0]], mapping_a[s[1]]];
+            mapped_segment.sort_unstable();
+            mapped_segment
         })
         .collect();
 
     let segments_b: Vec<Segment> = get_mesh_segments(mesh_b)
         .into_iter()
-        .map(|s| [mapping_b[s[0]], mapping_b[s[1]]])
-        .map(|mut s| {
-            s.sort_unstable();
-            s
+        .map(|s| {
+            let mut mapped_segment = [mapping_b[s[0]], mapping_b[s[1]]];
+            mapped_segment.sort_unstable();
+            mapped_segment
         })
         .collect();
 
-    // 3. Карта для хранения всех вершин, которые лежат на каждом отрезке
+    // 3. Ассоциативный массив для хранения всех вершин, которые лежат на каждом отрезке
     let mut segment_map: HashMap<Segment, HashSet<usize>> = HashMap::new();
 
-    // Добавляем все отрезки в карту
+    // Добавляем все отрезки в ассоциативный массив
     for &s in &segments_a {
         segment_map.entry(s).or_insert_with(HashSet::new);
     }
@@ -441,13 +446,13 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<D
     // 6. Генерируем финальный список подотрезков
     let mut all_segments: HashSet<Segment> = HashSet::new();
 
-    for ([start_idx, end_idx], points_set) in segment_map.into_iter() {
-        let mut points: Vec<usize> = points_set.into_iter().collect();
+    for ([start_idx, end_idx], points_idx_set) in segment_map.into_iter() {
+        let mut points_indices: Vec<usize> = points_idx_set.into_iter().collect();
 
         // Сортируем точки вдоль дуги на основе их расстояния от начальной точки
         let start_coords = all_vertices[start_idx].coords;
 
-        points.sort_unstable_by(|&a_idx, &b_idx| {
+        points_indices.sort_unstable_by(|&a_idx, &b_idx| {
             let a_coords = all_vertices[a_idx].coords;
             let b_coords = all_vertices[b_idx].coords;
 
@@ -457,13 +462,12 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<D
         });
 
         // Добавляем начальную и конечную вершины
-        points.insert(0, start_idx);
-        points.push(end_idx);
-        points.dedup();
+        points_indices.insert(0, start_idx);
+        points_indices.push(end_idx);
 
         // Создаем новые подсегменты
-        for i in 0..points.len() - 1 {
-            let mut seg = [points[i], points[i + 1]];
+        for i in 0..points_indices.len() - 1 {
+            let mut seg = [points_indices[i], points_indices[i + 1]];
             if seg[0] == seg[1] {
                 continue; // Пропускаем вырожденные сегменты
             }
@@ -477,8 +481,7 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<D
         }
     }
 
-    // TODO: возможно передавать слайсом или как-то еще чтобы не копировать лишний раз
-    DCEL::new(all_vertices, all_segments.into_iter().collect())
+    Ok(DCEL::new(all_vertices, all_segments)?)
 }
 
 /// Триангулирует плоскую грань многогранника с использованием триангуляции Делоне.
@@ -493,7 +496,7 @@ fn triangulate_face(face_vertices: &Vec<&Vertex>) -> Result<Vec<usize>, Box<dyn 
             "Грань должна содержать минимум 3 вершины, получено: {}",
             face_vertices.len()
         )
-        .into());
+            .into());
     }
 
     // 1. Находим нормаль к грани многогранника

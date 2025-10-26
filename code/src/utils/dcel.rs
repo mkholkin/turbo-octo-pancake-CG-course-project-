@@ -25,16 +25,16 @@ pub struct DCEL {
 }
 
 impl DCEL {
-    pub fn new(vertices: Vec<Vertex>, connections: Vec<[usize; 2]>) -> Result<Self, String> {
-        // let mut dcel = DCEL::default();
-        // dcel.vertices = vertices;
-
+    pub fn new(
+        vertices: Vec<Vertex>,
+        connections: impl IntoIterator<Item = [usize; 2]>,
+    ) -> Result<Self, String> {
         let mut half_edges = Vec::new();
         let mut edge_map: HashMap<usize, Vec<usize>> = HashMap::new();
 
         // 1. Создание полуребер.
         // Итерируем по всем каноническим сегментам и создаем пару близнецов.
-        for &seg in connections.iter() {
+        for seg in connections {
             let (start, end) = (seg[0], seg[1]);
             let mut he1 = HalfEdge::default();
             let mut he2 = HalfEdge::default();
