@@ -67,4 +67,11 @@ pub trait Renderer {
         image
     }
     fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene);
+    fn render_single_object(
+        &mut self,
+        image: &mut RgbImage,
+        object: &dyn crate::objects::model3d::InteractiveModel,
+        camera: &crate::objects::camera::Camera,
+        light: &LightSource,
+    );
 }

@@ -1,6 +1,6 @@
 use image::Rgb;
 
-pub const BACKGROUND_COLOR: Rgb<u8> = Rgb([70, 70, 70]);
+pub const BACKGROUND_COLOR: Rgb<u8> = Rgb([30, 30, 30]);
 
 // Camera settings
 pub const FOV_DEGREES: f64 = 60.0;
@@ -18,4 +18,4 @@ pub const SCALING_SENSITIVITY_FACTOR: f32 = 0.002;
 pub const ROTATION_SENSITIVITY_FACTOR: f32 = 0.2;
 
 // Morphing settings
-pub const RELAXATION_ROUNDS_LIMIT: usize = 3000;
+pub const RELAXATION_ROUNDS_LIMIT: usize = 100000;

@@ -74,12 +74,12 @@ impl WireframePerformer {
         }
     }
 }
-
-impl Renderer for WireframePerformer {
-    fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
-        image.fill(255);
-        for model in &scene.objects {
-            WireframePerformer::draw_object(image, &scene.camera, &**model);
-        }
-    }
-}
+//
+// impl Renderer for WireframePerformer {
+//     fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
+//         image.fill(255);
+//         for model in &scene.objects {
+//             WireframePerformer::draw_object(image, &scene.camera, &**model);
+//         }
+//     }
+// }

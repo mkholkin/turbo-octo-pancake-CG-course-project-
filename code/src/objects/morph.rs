@@ -5,7 +5,6 @@ use crate::utils::math::lerp;
 use crate::utils::morphing::{
     create_dcel_map, find_normals, parametrize_mesh, relocate_vertices_on_mesh, triangulate_dcel,
 };
-use egui::debug_text::print;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
 pub type Lerp<T> = Box<dyn Fn(f64) -> T>;
@@ -29,7 +28,7 @@ pub struct Morph {
 }
 
 impl Morph {
-    pub fn new(obj_a: TriangleMesh, obj_b: TriangleMesh) -> Self {
+    pub fn new(obj_a: TriangleMesh, obj_b: TriangleMesh) -> Result<Self, String> {
         // 1. Параметризация исходных сеток
         let mut parametrized_mesh_a = obj_a.clone();
         parametrize_mesh(&mut parametrized_mesh_a);
@@ -37,22 +36,34 @@ impl Morph {
         let mut parametrized_mesh_b = obj_b.clone();
         parametrize_mesh(&mut parametrized_mesh_b);
 
-        //2. Пересечение исходной и целевой сеток
-        let dcel = create_dcel_map(&parametrized_mesh_a, &parametrized_mesh_b);
+        // 2. Пересечение исходной и целевой сеток
+        let dcel = create_dcel_map(&parametrized_mesh_a, &parametrized_mesh_b)?;
 
-        //3. Триангуляция граней пересеченной сетки
-        let triangles = triangulate_dcel(&dcel);
+        // 3. Триангуляция граней пересеченной сетки
+        let triangles = triangulate_dcel(&dcel).map_err(|e| {
+            format!("Ошибка триангуляции DCEL: {}", e)
+        })?;
 
-        //4. Находим положения точек на исходной и целевой сетках
+        // 4. Находим положения точек на исходной и целевой сетках
         let src_vertices =
             relocate_vertices_on_mesh(&dcel.vertices, &parametrized_mesh_a, obj_a.vertices_world());
         let dst_vertices =
             relocate_vertices_on_mesh(&dcel.vertices, &parametrized_mesh_b, obj_b.vertices_world());
 
-        let src_normals = find_normals(&dcel.vertices, &triangles, &parametrized_mesh_a);
-        let dst_normals = find_normals(&dcel.vertices, &triangles, &parametrized_mesh_b);
+        let src_normals = find_normals(
+            &dcel.vertices,
+            &triangles,
+            &parametrized_mesh_a,
+            obj_a.normals(),
+        );
+        let dst_normals = find_normals(
+            &dcel.vertices,
+            &triangles,
+            &parametrized_mesh_b,
+            obj_b.normals(),
+        );
 
-        //5. Строим интерполяции
+        // 5. Строим интерполяции
         let vertex_interpolations: Vec<VertexInterpolation> = src_vertices
             .into_iter()
             .zip(dst_vertices.into_iter())
@@ -87,7 +98,7 @@ impl Morph {
         // Строим материал
         let material = material_interpolation(0.);
 
-        Morph {
+        Ok(Morph {
             vertices,
             vertices_world,
             triangles,
@@ -98,7 +109,7 @@ impl Morph {
             normals_interpolations,
             material_interpolation,
             model_matrix: Matrix4::identity(),
-        }
+        })
     }
 }
 
@@ -112,6 +123,7 @@ impl Morph {
     fn update_normals_world(&mut self) {
         for (nw, n) in self.normals_world.iter_mut().zip(self.normals.iter()) {
             *nw = self.model_matrix * n;
+            nw.normalize_mut();
         }
     }
 }
@@ -186,8 +198,15 @@ impl Rotate for Morph {
 impl Scale for Morph {
     fn scale(&mut self, scaling: f64) {
         self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
-        self.update_vertices_world()
+        self.update_vertices_world();
+        self.update_normals_world();
     }
 }
 
-impl InteractiveModel for Morph {}
+impl InteractiveModel for Morph {
+    fn reset_transformations(&mut self) {
+        self.model_matrix = Matrix4::identity();
+        self.update_vertices_world();
+        self.update_normals_world();
+    }
+}

@@ -129,12 +129,12 @@ impl TransparencyPerformer {
     }
 }
 
-impl Renderer for TransparencyPerformer {
-    fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
-        image.fill(70);
-
-        for object in &scene.objects {
-            self.draw_object(image, &**object, &scene.camera, &scene.light_source)
-        }
-    }
-}
+// impl Renderer for TransparencyPerformer {
+//     fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
+//         image.fill(70);
+//
+//         for object in &scene.objects {
+//             self.draw_object(image, &**object, &scene.camera, &scene.light_source)
+//         }
+//     }
+// }

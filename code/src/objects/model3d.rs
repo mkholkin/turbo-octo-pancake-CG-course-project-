@@ -2,7 +2,6 @@ use crate::objects::Point;
 use crate::utils::math::lerp;
 use image::Rgb;
 use nalgebra::{Matrix4, Vector4};
-
 pub type Triangle = (usize, usize, usize);
 
 pub trait Model3D {
@@ -46,7 +45,9 @@ pub trait Scale {
     fn scale(&mut self, scaling: f64);
 }
 
-pub trait InteractiveModel: Model3D + Rotate + Scale {}
+pub trait InteractiveModel: Model3D + Rotate + Scale {
+    fn reset_transformations(&mut self);
+}
 
 #[derive(Clone)]
 pub struct Material {
@@ -63,7 +64,7 @@ impl Default for Material {
             diffuse_reflectance_factor: 0.45,
             specular_reflectance_factor: 0.02,
             gloss: 1.,
-            color: Rgb([208, 43, 43]),
+            color: Rgb([70, 70, 70]),
             opacity: 0.1,
         }
     }

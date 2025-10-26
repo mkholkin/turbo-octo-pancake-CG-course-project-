@@ -1,13 +1,12 @@
 use crate::objects::Point;
 use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale, Triangle};
+use crate::utils::dcel::DCEL;
 use crate::utils::morphing::{center_of_mass, triangulate_dcel};
+use image::Rgb;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::error::Error;
 use std::fs;
 use std::io::{BufRead, BufReader};
-use image::Rgb;
-use crate::utils::dcel::DCEL;
-
 #[derive(Clone)]
 pub struct TriangleMesh {
     pub vertices: Vec<Point>,
@@ -18,8 +17,6 @@ pub struct TriangleMesh {
     pub material: Material,
 
     pub model_matrix: Matrix4<f64>,
-    normals_need_update: bool,
-    vertices_need_update: bool,
 }
 
 impl Default for TriangleMesh {
@@ -32,31 +29,31 @@ impl Default for TriangleMesh {
             triangles: Vec::default(),
             material: Material::default(),
             model_matrix: Matrix4::identity(),
-            normals_need_update: false,
-            vertices_need_update: false,
         }
     }
 }
 
 impl TriangleMesh {
     pub fn update_normals_world(&mut self) {
-        if self.normals_need_update {
-            for i in 0..self.normals.len() {
-                self.normals_world[i] = (self.model_matrix * self.normals[i]).normalize();
-            }
-            self.normals_need_update = false;
+        for i in 0..self.normals.len() {
+            self.normals_world[i] = (self.model_matrix * self.normals[i]).normalize();
         }
     }
 
     pub fn update_vertices_world(&mut self) {
-        if self.vertices_need_update {
-            for i in 0..self.vertices.len() {
-                self.vertices_world[i] =
-                    Point3::from_homogeneous(self.model_matrix * self.vertices[i].to_homogeneous())
-                        .unwrap()
+        for i in 0..self.vertices.len() {
+            if let Some(point) =
+                Point3::from_homogeneous(self.model_matrix * self.vertices[i].to_homogeneous())
+            {
+                self.vertices_world[i] = point;
             }
-            self.vertices_need_update = false;
         }
+    }
+
+    pub fn reset_transformations(&mut self) {
+        self.model_matrix = Matrix4::identity();
+        self.update_vertices_world();
+        self.update_normals_world();
     }
 }
 
@@ -103,9 +100,7 @@ impl Rotate for TriangleMesh {
         ));
         self.model_matrix = self.model_matrix * rotation_matrix;
 
-        self.normals_need_update = true;
         self.update_normals_world();
-        self.vertices_need_update = true; // Also need to update vertices!
         self.update_vertices_world();
     }
 }
@@ -113,7 +108,6 @@ impl Rotate for TriangleMesh {
 impl Scale for TriangleMesh {
     fn scale(&mut self, scaling: f64) {
         self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
-        self.vertices_need_update = true;
         self.update_vertices_world()
     }
 }
@@ -270,7 +264,15 @@ impl From<DCEL> for TriangleMesh {
     fn from(dcel: DCEL) -> Self {
         let mut mesh = Self::default();
 
-        mesh.triangles = triangulate_dcel(&dcel);
+        mesh.triangles = triangulate_dcel(&dcel).unwrap_or_else(|e| {
+            eprintln!(
+                "DEBUG: TriangleMesh::from(DCEL) - ошибка триангуляции: {}",
+                e
+            );
+            eprintln!("ВНИМАНИЕ: Не удалось триангулировать DCEL, создаётся пустая сетка");
+            Vec::new()
+        });
+
         mesh.vertices = dcel.vertices;
         mesh.vertices_world = mesh.vertices.clone();
         mesh.material.color = Rgb([0, 255, 0]);
@@ -279,4 +281,10 @@ impl From<DCEL> for TriangleMesh {
     }
 }
 
-impl InteractiveModel for TriangleMesh {}
+impl InteractiveModel for TriangleMesh {
+    fn reset_transformations(&mut self) {
+        self.model_matrix = Matrix4::identity();
+        self.update_vertices_world();
+        self.update_normals_world();
+    }
+}

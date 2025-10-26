@@ -7,8 +7,10 @@ use delaunator::{Point, triangulate};
 use itertools::izip;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
 
 const EPS: f64 = 1e-6;
+const VERTEX_MATCH_EPS: f64 = 1e-6;
 
 type Segment = [usize; 2];
 
@@ -70,7 +72,7 @@ fn get_orientations(vertices: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Vec<f6
 }
 
 fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<f64>) {
-    let epsilon_threshold = 1e-3;
+    let epsilon_threshold = 1e-2;
 
     let neighbors = collect_neighbors(parametrized_mesh);
 
@@ -125,7 +127,62 @@ fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<
     println!("{}", round_no);
 }
 
+fn find_inner_point(mesh: &TriangleMesh) -> Option<Vertex> {
+    let vertices = mesh.vertices_world();
+    let normals = mesh.normals();
+    let triangles = mesh.triangles();
+
+    // 1. Испускаем луч из середины первого попавшегося полигона в направлении внутренней нормали
+    let tri = triangles[0];
+    let ray_direction = normals[0].xyz().scale(-1.0);
+    let ray_origin =
+        (vertices[tri.0].coords + vertices[tri.1].coords + vertices[tri.2].coords) / 3.0;
+
+    // 2. Находим все пересечения луча с другими полигонами
+    let intersections = izip!(triangles, normals)
+        .skip(1)
+        .filter_map(|(tri, normal)| {
+            let normal = normal.xyz();
+            let t = (vertices[tri.0].coords - ray_origin).dot(&normal) / ray_direction.dot(&normal);
+            if t < f64::EPSILON || t.is_infinite() || t.is_nan() {
+                return None;
+            }
+            
+            let intersection = Vertex::from(ray_origin + ray_direction.scale(t));
+            
+            let bary = barycentric(
+                &intersection,
+                &vertices[tri.0],
+                &vertices[tri.1],
+                &vertices[tri.2],
+            );
+            if bary.x > -f64::EPSILON && bary.y > -f64::EPSILON && bary.z > -f64::EPSILON {
+                Some(intersection)
+            } else {
+                None
+            }
+        });
+
+    // 3. Находим ближайшую точку пересечения к источнику луча
+    let closest_intersection = intersections.min_by(|a: &Vertex, b: &Vertex| {
+        let dist_a = (a.coords - ray_origin).norm_squared();
+        let dist_b = (b.coords - ray_origin).norm_squared();
+        dist_a.partial_cmp(&dist_b).unwrap()
+    });
+
+    // 4. Возвращаем точку посередине между источником луча и ближайшей точкой пересечения
+    match closest_intersection {
+        Some(point) => Some(Vertex::from((ray_origin + point.coords) / 2.0)),
+        None => None,
+    }
+}
+
 pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
+    let inner_point = find_inner_point(mesh).unwrap();
+    for v in mesh.vertices_world_mut() {
+        *v = Point3::from((v.coords - inner_point.coords).normalize());
+    }
+
     let vertices_world = mesh.vertices_world();
     let original_orientations = izip!(mesh.triangles(), mesh.normals())
         .map(|(tri, normal)| {
@@ -136,12 +193,6 @@ pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
             v0.cross(&v1).dot(&v2).signum()
         })
         .collect();
-
-    // TODO: нужно искать не центр масс, а внутреннюю точку
-    let center = center_of_mass(mesh);
-    for v in mesh.vertices_world_mut() {
-        *v = Point3::from((v.coords - center).normalize());
-    }
 
     relax_mesh(mesh, &original_orientations);
 
@@ -233,7 +284,7 @@ fn get_mesh_segments(mesh: &TriangleMesh) -> HashSet<Segment> {
 
 fn find_or_add_vertex(vertices: &mut Vec<Point3<f64>>, point: Point3<f64>) -> usize {
     for (i, v) in vertices.iter().enumerate() {
-        if (v.coords - point.coords).norm() < EPS {
+        if (v.coords - point.coords).norm() < VERTEX_MATCH_EPS {
             return i;
         }
     }
@@ -321,9 +372,11 @@ fn find_vertices_on_edges(
 }
 /// Основная функция для построения DCEL из пересечения двух сеток.
 /// Корректно обрабатывает совпадающие вершины и случаи, когда вершина лежит на ребре.
-pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
+pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<DCEL, String> {
     // 1. Создаем унифицированную карту вершин, избегая дублирования
     let (mut all_vertices, mapping_a, mapping_b) = create_unified_vertex_map(mesh_a, mesh_b);
+
+    println!("{} {} {}", mesh_a.vertices.len(), mesh_b.vertices.len(), all_vertices.len());
 
     // 2. Получаем сегменты из обеих сеток с правильными индексами
     let segments_a: Vec<Segment> = get_mesh_segments(mesh_a)
@@ -429,8 +482,19 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> DCEL {
 }
 
 /// Триангулирует плоскую грань многогранника с использованием триангуляции Делоне.
-fn triangulate_face(face_vertices: &Vec<&Vertex>) -> Vec<usize> {
-    assert!(face_vertices.len() >= 3);
+fn triangulate_face(face_vertices: &Vec<&Vertex>) -> Result<Vec<usize>, Box<dyn Error>> {
+    // Проверка минимального количества вершин
+    if face_vertices.len() < 3 {
+        eprintln!(
+            "DEBUG: triangulate_face - недостаточно вершин: {} (требуется >= 3)",
+            face_vertices.len()
+        );
+        return Err(format!(
+            "Грань должна содержать минимум 3 вершины, получено: {}",
+            face_vertices.len()
+        )
+        .into());
+    }
 
     // 1. Находим нормаль к грани многогранника
     // Поскольку грань может содержать отрезки, лежащие на одной прямой,
@@ -444,44 +508,57 @@ fn triangulate_face(face_vertices: &Vec<&Vertex>) -> Vec<usize> {
         }
     }
 
-    if !(normal.norm() > 0.) {
-        println!("v1 = {}", v1);
-        println!("v2 = {}", face_vertices[2] - face_vertices[0]);
-        println!("normal.norm() = {}", normal.norm());
-        let a = 1;
+    // Проверка валидности нормали
+    if normal.norm() < f64::EPSILON {
+        eprintln!("DEBUG: triangulate_face - не удалось вычислить нормаль к грани");
+        eprintln!("  v1 = {}", v1);
+        if face_vertices.len() > 2 {
+            eprintln!("  v2 = {}", face_vertices[2] - face_vertices[0]);
+        }
+        eprintln!("  normal.norm() = {}", normal.norm());
+        eprintln!("  количество вершин: {}", face_vertices.len());
+        return Err("Не удалось вычислить нормаль к грани: все вершины коллинеарны".into());
     }
-    // FIXME: Possible bug here
-    assert!(normal.norm() > 0.);
+
     normal.normalize_mut();
 
     // 2. Создаем ортонормированный базис грани [u, v].
-    // Выбираем произвольный вектор и проецируем его на плоскость грани.
-    let mut random_vec = Vector3::new(1., 0., 0.);
-    if random_vec.dot(&normal) > 0.99 {
-        // Если почти параллелен нормали, выбираем другой
-        random_vec = Vector3::new(0., 1., 0.);
+    // Используем первое ребро грани как один из базисных векторов
+    let mut u_vec = face_vertices[1] - face_vertices[0];
+
+    if u_vec.norm_squared() < f64::EPSILON {
+        eprintln!("DEBUG: triangulate_face - вырожденное первое ребро грани");
+        eprintln!("  u_vec.norm_squared() = {}", u_vec.norm_squared());
+        return Err("Не удалось построить базис: первое ребро вырождено".into());
     }
 
-    // Проецируем вектор на плоскость грани
-    let mut u_vec = random_vec - random_vec.dot(&normal) * normal;
-    assert!(u_vec.norm_squared() > f64::EPSILON);
     u_vec.normalize_mut();
 
-    // Второй вектор базиса
-    let v_vec = normal.cross(&u_vec).normalize();
+    // Второй вектор базиса получаем как векторное произведение нормали и первого базисного вектора
+    let mut v_vec = normal.cross(&u_vec);
+
+    // Проверяем валидность второго базисного вектора
+    if v_vec.norm_squared() < f64::EPSILON {
+        eprintln!("DEBUG: triangulate_face - вырожденный второй базисный вектор");
+        eprintln!("  v_vec.norm_squared() = {}", v_vec.norm_squared());
+        eprintln!("  normal = {}", normal);
+        eprintln!("  u_vec = {}", u_vec);
+        return Err("Не удалось построить ортонормированный базис грани".into());
+    }
+
+    v_vec.normalize_mut();
 
     // 3. Проецируем 3D-вершины на 2D-плоскость, используя новый базис
-    // Находим центр масс грани
-    let face_center: Vector3<f64> = face_vertices.iter().map(|p| p.coords).sum();
-    let face_center = face_center / face_vertices.len() as f64;
+    // Используем первую вершину как начало координат
+    let origin = face_vertices[0].coords;
 
     // Проецируем точки
     let mut projected_points_2d = Vec::new();
     for v in face_vertices {
-        let vec_from_center = v.coords - face_center;
+        let vec_from_origin = v.coords - origin;
         let point = Point {
-            x: vec_from_center.dot(&u_vec).into(),
-            y: vec_from_center.dot(&v_vec).into(),
+            x: vec_from_origin.dot(&u_vec).into(),
+            y: vec_from_origin.dot(&v_vec).into(),
         };
 
         projected_points_2d.push(point);
@@ -490,17 +567,25 @@ fn triangulate_face(face_vertices: &Vec<&Vertex>) -> Vec<usize> {
     // 4. Триангулируем грань при помощи триангуляции Делоне
     let triangulation = triangulate(projected_points_2d.as_slice());
 
-    triangulation.triangles
+    Ok(triangulation.triangles)
 }
 
-pub fn triangulate_dcel(dcel: &DCEL) -> Vec<Triangle> {
+pub fn triangulate_dcel(dcel: &DCEL) -> Result<Vec<Triangle>, Box<dyn Error>> {
     let mut triangles = Vec::new();
 
     for face_idx in 0..dcel.faces.len() {
         let vertex_indices = dcel.get_face_vertices(face_idx);
         let face_vertices_refs: Vec<&Vertex> =
             vertex_indices.iter().map(|&i| &dcel.vertices[i]).collect();
-        let local_triangles = triangulate_face(&face_vertices_refs);
+
+        let local_triangles = triangulate_face(&face_vertices_refs).map_err(|e| {
+            eprintln!(
+                "DEBUG: triangulate_dcel - ошибка триангуляции грани {}: {}",
+                face_idx, e
+            );
+            format!("Ошибка триангуляции грани {}: {}", face_idx, e)
+        })?;
+
         let global_triangles: Vec<Triangle> = local_triangles
             .chunks(3)
             .map(|chunk| {
@@ -515,7 +600,7 @@ pub fn triangulate_dcel(dcel: &DCEL) -> Vec<Triangle> {
         triangles.extend(global_triangles);
     }
 
-    triangles
+    Ok(triangles)
 }
 
 // Найти треугольник на сетке, которому принадлежит точка.
@@ -591,8 +676,9 @@ pub fn find_normals(
     parametrized_vertices: &Vec<Vertex>,
     triangles: &Vec<Triangle>,
     parametrized_mesh: &TriangleMesh,
+    normals: &[Vector4<f64>],
 ) -> Vec<Vector4<f64>> {
-    let mut normals = Vec::new();
+    let mut result_normals = Vec::new();
 
     for tri in triangles {
         let center = Point3::from(
@@ -603,8 +689,8 @@ pub fn find_normals(
         );
 
         let (tri_idx, _) = find_enclosing_triangle(&center, parametrized_mesh);
-        normals.push(parametrized_mesh.normals()[tri_idx]);
+        result_normals.push(normals[tri_idx]);
     }
 
-    normals
+    result_normals
 }
