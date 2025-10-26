@@ -18,4 +18,4 @@ pub const SCALING_SENSITIVITY_FACTOR: f32 = 0.002;
 pub const ROTATION_SENSITIVITY_FACTOR: f32 = 0.2;
 
 // Morphing settings
-pub const RELAXATION_ROUNDS_LIMIT: usize = 50000;
+pub const RELAXATION_ROUNDS_LIMIT: usize = 100000;
