@@ -270,6 +270,7 @@ impl MyEguiApp {
                 Ok(morph) => {
                     self.morph_object = Some(morph);
                     self.morph_created = true;
+                    self.morph_phase = 0.0; // Сброс фазы морфинга
                     self.update_scene_objects();
                     self.needs_redraw = true; // Требуется перерисовка после создания морфинга
                 }
