@@ -5,14 +5,13 @@
 Программа должна предоставлять пользователю графический интерфейс, позволяющий:
 \begin{itemize}
     \item загрузить исходный и целевой объект из \textit{.obj} файла;
-    \item выбрать цвет и оптические свойства поверхности загруженных объектов;
+    \item изменить цвет и оптические свойства поверхности загруженных объектов;
     \item просматривать каждый объект и результат морфинга посредством поворота и масштабирования;
     \item изменять масштабирование и поворот исходного и целевого объектов морфинга;
     \item выбирать стадию морфинга объектов.
 \end{itemize}
 
 Программа должна корректно реагировать на любые действия пользователя.
-
 
 \section{Используемы типы и структуры данных}
 \begin{enumerate}
@@ -214,10 +213,73 @@ $\mathbf{n_A}$ --- вектор нормали к $A$.
 
 Найдя точку пересечения луча с плоскостью, необходимо определить, лежит ли она внутри полигона. Для этого можно использовать барицентрические координаты.
 
-\subsection{Матрица перспективного преобразования}
-TODO: Про перевод в пространство вида OpenGL?
+\subsection{Матрицы преобразований}
 
-\section{Описание алгоритмов}
+\subsubsection{Матрицы преобразований в мировое пространство}
+Для перевода объектов из их локального пространства в мировое пространство используются матрицы масштабирования и поворота~\cite{foley, rogers, porev}.
+Матрицы поворота вокруг осей $X$, $Y$ и $Z$ представлены в формулах~\eqref{eq:rot_x},~\eqref{eq:rot_y} и~\eqref{eq:rot_z} соответственно.
+
+\begin{equation}
+    \label{eq:rot_x}
+    R_X(\theta) =
+    \begin{bmatrix}
+        1 & 0 & 0 & 0 \\
+        0 & \cos\theta & -\sin\theta & 0 \\
+        0 & \sin\theta & \cos\theta & 0 \\
+        0 & 0 & 0 & 1
+    \end{bmatrix}
+\end{equation}
+
+\begin{equation}
+    \label{eq:rot_y}
+    R_Y(\theta) =
+    \begin{bmatrix}
+        \cos\theta & 0 & \sin\theta & 0 \\
+        0 & 1 & 0 & 0 \\
+        -\sin\theta & 0 & \cos\theta & 0 \\
+        0 & 0 & 0 & 1
+    \end{bmatrix}
+\end{equation}
+
+\begin{equation}
+    \label{eq:rot_z}
+    R_Z(\theta) =
+    \begin{bmatrix}
+        \cos\theta & -\sin\theta & 0 & 0 \\
+        \sin\theta & \cos\theta & 0 & 0 \\
+        0 & 0 & 1 & 0 \\
+        0 & 0 & 0 & 1
+    \end{bmatrix}
+\end{equation}
+
+Матрица масштабирования представлена в формуле~\eqref{eq:scale}.
+
+\begin{equation}
+    \label{eq:scale}
+    S =
+    \begin{bmatrix}
+        S_X & 0 & 0 & 0 \\
+        0 & S_Y & 0 & 0 \\
+        0 & 0 & S_Z & 0 \\
+        0 & 0 & 0 & 1
+    \end{bmatrix}
+\end{equation}
+
+%TODO: Возможно не стоит об этом писать
+%\subsubsection{Матрица перспективной проекции}
+%
+%\begin{equation}
+%    \label{eq:perspective}
+%    M =
+%    \begin{bmatrix}
+%        \frac{\ctg{\frac{FOV_y}{2}}}{aspect} & 0 & 0 & 0 \\
+%        0 & \ctg{\frac{FOV_y}{2}} & 0 & 0 & 0 \\
+%        0 & 0 & -\frac{Z_{far} + Z_{near}}{Z_{far} - Z_{near}} & -1 \\
+%        0 & 0 & -2\frac{Z_{far} \cdot Z_{near}}{Z_{far} - Z_{near}} & 0
+%    \end{bmatrix}
+%\end{equation}
+
+\section{Разработка алгоритмов}
 
 \begin{figure}[H]
     \label{fig:morphig_idef0}
