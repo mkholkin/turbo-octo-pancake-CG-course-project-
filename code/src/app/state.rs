@@ -15,6 +15,7 @@ use eframe::egui::{Context, TextureHandle};
 use image::{Rgb, RgbImage};
 use imageproc::definitions::HasWhite;
 use nalgebra::{Point3, Vector3};
+use crate::render::transparency::TransparencyPerformer;
 
 const IMG_WIDTH: u32 = 2000;
 const IMG_HEIGHT: u32 = 2000;
@@ -92,6 +93,7 @@ impl Default for MyEguiApp {
             frame: RgbImage::from_pixel(IMG_WIDTH, IMG_HEIGHT, BACKGROUND_COLOR),
             scene,
             renderer: Box::new(ZBufferPerformer::new(IMG_WIDTH, IMG_HEIGHT)),
+            // renderer: Box::new(TransparencyPerformer {}),
             fps: 0.0,
             last_frame_time: Instant::now(),
             selected_source_file: String::new(),
