@@ -1,6 +1,5 @@
 use nalgebra::{Point3, Vector3};
-use std::collections::HashMap;
-use std::f64::consts::PI;
+use std::collections::BTreeMap;
 
 pub type Vertex = Point3<f64>;
 
@@ -30,7 +29,7 @@ impl DCEL {
         connections: impl IntoIterator<Item = [usize; 2]>,
     ) -> Result<Self, String> {
         let mut half_edges = Vec::new();
-        let mut edge_map: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut edge_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
 
         // 1. Создание полуребер.
         // Итерируем по всем каноническим сегментам и создаем пару близнецов.
@@ -58,55 +57,53 @@ impl DCEL {
         // 2. Сортировка полуребер, исходящих из каждой вершины, по углу наклона.
         // Это ключевой шаг для правильного связывания граней.
         for (vertex_idx, outgoing_edges_indices) in edge_map.iter_mut() {
-            let origin_point = &vertices[*vertex_idx];
-            outgoing_edges_indices.sort_by(|a, b| {
-                let a_dir = vertices[half_edges[half_edges[*a].twin].origin] - origin_point;
-                let b_dir = vertices[half_edges[half_edges[*b].twin].origin] - origin_point;
-
-                let ang_a = tangent_angle(&origin_point.coords, &a_dir);
-                let ang_b = tangent_angle(&origin_point.coords, &b_dir);
-
-                ang_a.partial_cmp(&ang_b).unwrap()
-            })
-        }
-
-        // 3. Связывание указателей `next` и `prev`.
-        // Создаем циклы, которые определяют границы граней.
-        for (key, outgoing_edges_indices) in edge_map {
             if outgoing_edges_indices.len() < 2 {
                 return Err(format!(
                     "Вершина {} должна иметь минимум 2 исходящих ребра, получено: {}",
-                    key,
+                    vertex_idx,
                     outgoing_edges_indices.len()
                 ));
             }
 
+            let origin_point = &vertices[*vertex_idx];
+            Self::sort_edges_by_angle(origin_point, outgoing_edges_indices, &half_edges, &vertices);
+        }
+
+        // 3. Связывание указателей `next` и `prev`.
+        // Создаем циклы, которые определяют границы граней.
+        for (_, outgoing_edges_indices) in &edge_map {
+            // Используем &edge_map, чтобы не перемещать значения
             let n = outgoing_edges_indices.len();
             for i in 0..n {
-                let idx = outgoing_edges_indices[i];
-                let twin_idx = half_edges[idx].twin;
-                half_edges[twin_idx].next = Some(outgoing_edges_indices[(i + 1) % n]);
+                let h_curr_idx = outgoing_edges_indices[i];
+                let h_prev_idx = outgoing_edges_indices[(i + n - 1) % n];
+
+                let t_prev_idx = half_edges[h_prev_idx].twin;
+                half_edges[t_prev_idx].next = Some(h_curr_idx);
             }
         }
 
         // 4. Обход полуребер для нахождения граней.
         let mut faces = Vec::new();
+        for he_idx in 0..half_edges.len() {
+            if half_edges[he_idx].face.is_none() {
+                // Нашли новое, еще не назначенное полуребро -> нашли новую грань.
+                let face_idx = faces.len();
+                faces.push(Face { edge: he_idx });
 
-        for i in 0..half_edges.len() {
-            if half_edges[i].face.is_some() {
-                continue;
-            }
+                // Обходим цикл `next`, чтобы пометить все полуребра этой грани.
+                let mut curr_he_idx = he_idx;
+                loop {
+                    let he = &mut half_edges[curr_he_idx];
+                    if he.face.is_some() {
+                        break;
+                    }
+                    he.face = Some(face_idx);
+                    curr_he_idx = he.next.ok_or("HalfEdge loop is broken")?;
 
-            let face = Face { edge: i };
-            let face_idx = faces.len();
-            faces.push(face);
-
-            let mut curr_he_idx = i;
-            loop {
-                half_edges[curr_he_idx].face = Some(face_idx);
-                curr_he_idx = half_edges[curr_he_idx].next.unwrap();
-                if curr_he_idx == i {
-                    break;
+                    if curr_he_idx == he_idx {
+                        break;
+                    }
                 }
             }
         }
@@ -122,56 +119,66 @@ impl DCEL {
 
     pub fn get_face_vertices(&self, face_idx: usize) -> Vec<usize> {
         let mut vertices = Vec::new();
+        let start_he_idx = self.faces[face_idx].edge;
+        let mut curr_he_idx = start_he_idx;
 
-        let half_edge_idx = self.faces[face_idx].edge;
-        let mut curr_he_idx = half_edge_idx;
         loop {
             let curr_he = &self.half_edges[curr_he_idx];
-
             vertices.push(curr_he.origin);
             curr_he_idx = curr_he.next.unwrap();
-            if curr_he_idx == half_edge_idx {
+
+            // Прерываем цикл, когда возвращаемся к ИСХОДНОМУ РЕБРУ.
+            if curr_he_idx == start_he_idx {
                 break;
             }
         }
 
         vertices
     }
+
+    fn sort_edges_by_angle(
+        origin_point: &Vertex,
+        outgoing_edges_indices: &mut [usize],
+        half_edges: &[HalfEdge],
+        vertices: &[Vertex],
+    ) {
+        let normal = origin_point.coords.normalize(); // Всегда лучше нормализовать
+
+        // 1. Создаем НАДЕЖНЫЙ ортонормированный базис в касательной плоскости.
+        // Выбираем глобальную ось, которая не коллинеарна нормали.
+        let reference_vec = if normal.z.abs() < 0.999 {
+            // Если мы не у полюсов
+            Vector3::new(0.0, 0.0, 1.0) // Используем ось Z
+        } else {
+            // Если мы у полюсов, используем ось X
+            Vector3::new(1.0, 0.0, 0.0)
+        };
+
+        // Проецируем опорный вектор на касательную плоскость, чтобы получить `u`
+        let u = (reference_vec - normal * reference_vec.dot(&normal)).normalize();
+        // `v` перпендикулярен `normal` и `u`
+        let v = normal.cross(&u).normalize();
+
+        // 2. Сортируем ребра, используя этот надежный базис.
+        outgoing_edges_indices.sort_by(|&a_idx, &b_idx| {
+            // Находим конечную точку для каждого полуребра
+            let p_a = vertices[half_edges[half_edges[a_idx].twin].origin];
+            let p_b = vertices[half_edges[half_edges[b_idx].twin].origin];
+
+            let a_dir = (p_a - origin_point).normalize();
+            let b_dir = (p_b - origin_point).normalize();
+
+            let angle_a = tangent_angle(&u, &v, &a_dir);
+            let angle_b = tangent_angle(&u, &v, &b_dir);
+
+            angle_a.total_cmp(&angle_b)
+        });
+    }
 }
 
 /// Вычисляет угол направления в касательной плоскости вершины.
-fn tangent_angle(normal: &Vector3<f64>, direction: &Vector3<f64>) -> f64 {
-    // Шаг 1: Выбираем опорный вектор, не коллинеарный нормали.
-    let mut ref_vector = if normal.x.abs() < 0.1 && normal.y.abs() < 0.1 {
-        // Если нормаль близка к оси Z
-        Vector3::new(1.0, 0.0, 0.0)
-    } else {
-        Vector3::new(0.0, 0.0, 1.0)
-    };
-
-    // Шаг 2: Строим ортонормированный базис (u, v) для касательной плоскости.
-    let mut u = normal.cross(&ref_vector);
-
-    // Если u нулевой, пробуем другой ref
-    if u.norm_squared() < 1e-6 {
-        ref_vector = if normal.x.abs() < 0.5 {
-            Vector3::new(1.0, 0.0, 0.0)
-        } else {
-            Vector3::new(0.0, 1.0, 0.0)
-        };
-        u = normal.cross(&ref_vector);
-    }
-    u.normalize_mut();
-
-    let v = normal.cross(&u); // Уже ортонормирован
-
-    // Шаг 3: Проекция вектора направления на базис (u, v).
+fn tangent_angle(u: &Vector3<f64>, v: &Vector3<f64>, direction: &Vector3<f64>) -> f64 {
     let x = direction.dot(&u);
     let y = direction.dot(&v);
-
-    // Шаг 4: Вычисляем угол в радианах.
-    let angle = y.atan2(x);
-
-    // Приводим угол к диапазону [0, 2π].
-    if angle < 0.0 { angle + 2.0 * PI } else { angle }
+    y.atan2(x)
 }

@@ -22,7 +22,7 @@ fn triangle_area(v1: &Point3<f64>, v2: &Point3<f64>, v3: &Point3<f64>) -> f64 {
 
 /// Вычисляет центр масс полигональной сетки.
 pub fn center_of_mass(mesh: &TriangleMesh) -> Vector3<f64> {
-    // TODO: работа с вершинами в координатах мира (после трансформаций)
+    // TODO: работа с вершинами в координатах мира (пос��е трансформаций)
 
     let mut total_area = 0.0;
     let mut weighted_center = Vector3::zeros();
@@ -203,26 +203,32 @@ pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
 /// Checks if a point `p` is on the arc between points `start` and `end`.
 /// All points are expected to be on the unit sphere.
 fn is_on_arc(p: &Point3<f64>, start: &Point3<f64>, end: &Point3<f64>) -> bool {
-    let p_vec = p.coords;
-    let start_vec = start.coords;
-    let end_vec = end.coords;
+    const ON_ARC_EPSILON: f64 = 1e-11;
+    let p_vec = p.coords.normalize();
+    let start_vec = start.coords.normalize();
+    let end_vec = end.coords.normalize();
 
-    // Check if the point p is on the great circle defined by start and end.
-    let cross_product = start_vec.cross(&end_vec);
-    let scalar_triple_product = cross_product.dot(&p_vec);
-    if scalar_triple_product.abs() > EPS {
-        return false;
+    // 1. Проверка копланарности: P должен лежать на большом круге, определяемом Start и End.
+    // Смешанное произведение (start_vec.cross(end_vec)).dot(p_vec) должно быть близко к нулю.
+    // Это эквивалентно проверке, что p_vec является линейной комбинацией start_vec и end_vec.
+    // Мы можем пропустить эту явную проверку, так как intersect_arcs уже находит копланарные точки.
+    // Но для общей функции она важна.
+    let normal = start_vec.cross(&end_vec);
+    if normal.dot(&p_vec).abs() > ON_ARC_EPSILON {
+        return false; // P не лежит на большом круге дуги
     }
 
-    // A correct angular check: the angle from start to p plus the angle
-    // from p to end must equal the angle from start to end.
-    // We can use the dot products for this.
-    let total_angle = start_vec.dot(&end_vec);
-    let angle_sp = start_vec.dot(&p_vec);
-    let angle_pe = p_vec.dot(&end_vec);
+    // 2. Проверка, находится ли P между Start и End.
+    // Угол(start, p) + Угол(p, end) должен быть равен Углу(start, end).
+    // Используем acos для получения углов.
+    let angle_sp = start_vec.dot(&p_vec).clamp(-1.0, 1.0).acos();
+    let angle_pe = p_vec.dot(&end_vec).clamp(-1.0, 1.0).acos();
+    let angle_se = start_vec.dot(&end_vec).clamp(-1.0, 1.0).acos();
 
-    // This check ensures p is between start and end.
-    if total_angle <= angle_sp && total_angle <= angle_pe {
+    // clamp(-1.0, 1.0) защищает от ошибок f64, когда dot-продукт чуть-чуть > 1.0.
+
+    // Проверяем, что сумма углов равна общему углу с некоторой точностью.
+    if (angle_sp + angle_pe - angle_se).abs() < ON_ARC_EPSILON {
         return true;
     }
 
@@ -282,41 +288,15 @@ fn get_mesh_segments(mesh: &TriangleMesh) -> HashSet<Segment> {
         .collect()
 }
 
-fn find_or_add_vertex(vertices: &mut Vec<Point3<f64>>, point: Point3<f64>) -> usize {
+fn find_or_add_vertex(vertices: &mut Vec<Point3<f64>>, point: &Point3<f64>) -> usize {
     for (i, v) in vertices.iter().enumerate() {
         if (v.coords - point.coords).norm() < VERTEX_MATCH_EPS {
             return i;
         }
     }
     let new_index = vertices.len();
-    vertices.push(point);
+    vertices.push(*point);
     new_index
-}
-
-/// Проверяет, лежит ли точка на дуге между двумя точками на единичной сфере
-fn point_lies_on_arc(point: &Point3<f64>, start: &Point3<f64>, end: &Point3<f64>) -> bool {
-    let p_vec = point.coords;
-    let start_vec = start.coords;
-    let end_vec = end.coords;
-
-    // Проверяем, лежит ли точка на большом круге, определяемом start и end
-    let cross_product = start_vec.cross(&end_vec);
-    if cross_product.norm() < EPS {
-        // start и end совпадают или противоположны
-        return (p_vec - start_vec).norm() < EPS || (p_vec - end_vec).norm() < EPS;
-    }
-
-    let scalar_triple_product = cross_product.dot(&p_vec);
-    if scalar_triple_product.abs() > EPS {
-        return false;
-    }
-
-    // Проверяем, что точка лежит между start и end на дуге
-    let angle_start_end = start_vec.dot(&end_vec).clamp(-1.0, 1.0).acos();
-    let angle_start_point = start_vec.dot(&p_vec).clamp(-1.0, 1.0).acos();
-    let angle_point_end = p_vec.dot(&end_vec).clamp(-1.0, 1.0).acos();
-
-    (angle_start_point + angle_point_end - angle_start_end).abs() < EPS
 }
 
 /// Создает карту уникальных вершин, объединяя совпадающие точки из двух сеток
@@ -330,13 +310,13 @@ fn create_unified_vertex_map(
 
     // Добавляем вершины из первой сетки
     for vertex in mesh_a.vertices_world() {
-        let idx = find_or_add_vertex(&mut unified_vertices, *vertex);
+        let idx = find_or_add_vertex(&mut unified_vertices, vertex);
         mapping_a.push(idx);
     }
 
     // Добавляем вершины из второй сетки, проверяя на дубликаты
     for vertex in mesh_b.vertices_world() {
-        let idx = find_or_add_vertex(&mut unified_vertices, *vertex);
+        let idx = find_or_add_vertex(&mut unified_vertices, vertex);
         mapping_b.push(idx);
     }
 
@@ -358,7 +338,7 @@ fn find_vertices_on_edges(
             let end = &all_vertices[segment[1]];
 
             // Проверяем, лежит ли вершина на этой дуге
-            if point_lies_on_arc(vertex, start, end)
+            if is_on_arc(vertex, start, end)
                 && vertex_idx != segment[0]
                 && vertex_idx != segment[1]
             {
@@ -436,7 +416,7 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<D
             let arc_2 = [&all_vertices[seg_b[0]], &all_vertices[seg_b[1]]];
 
             if let Some(intersection_point) = intersect_arcs(arc_1, arc_2) {
-                let inter_idx = find_or_add_vertex(&mut all_vertices, intersection_point);
+                let inter_idx = find_or_add_vertex(&mut all_vertices, &intersection_point);
                 segment_map.get_mut(&seg_a).unwrap().insert(inter_idx);
                 segment_map.get_mut(&seg_b).unwrap().insert(inter_idx);
             }
@@ -449,16 +429,17 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<D
     for ([start_idx, end_idx], points_idx_set) in segment_map.into_iter() {
         let mut points_indices: Vec<usize> = points_idx_set.into_iter().collect();
 
-        // Сортируем точки вдоль дуги на основе их расстояния от начальной точки
+        // Сортируем точки вдоль дуги на основе их угла поворота от начальной точки
         let start_coords = all_vertices[start_idx].coords;
 
         points_indices.sort_unstable_by(|&a_idx, &b_idx| {
             let a_coords = all_vertices[a_idx].coords;
             let b_coords = all_vertices[b_idx].coords;
 
-            let dist_a = (start_coords - a_coords).norm_squared();
-            let dist_b = (start_coords - b_coords).norm_squared();
-            dist_a.partial_cmp(&dist_b).unwrap()
+            let dot_a = start_coords.dot(&a_coords);
+            let dot_b = start_coords.dot(&b_coords);
+
+            dot_b.partial_cmp(&dot_a).unwrap()
         });
 
         // Добавляем начальную и конечную вершины
