@@ -357,7 +357,7 @@ impl MyEguiApp {
             // Отображаем изображение на весь доступный размер
             let resp = ui.image((texture.id(), available_size));
             // Обновляем флаг наличия курсора над viewport
-            self.viewport_has_pointer = resp.hovered();
+            self.viewport_has_pointer = resp.contains_pointer();
         } else {
             // Текстуры нет — курсор над viewport отсутствует
             self.viewport_has_pointer = false;
