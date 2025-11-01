@@ -1,12 +1,14 @@
 use crate::objects::Point;
 use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale, Triangle};
 use crate::utils::dcel::DCEL;
-use crate::utils::morphing::{center_of_mass, triangulate_dcel};
+use crate::utils::morphing::triangulate_dcel;
+use crate::utils::triangles::triangle_area;
 use image::Rgb;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::error::Error;
 use std::fs;
 use std::io::{BufRead, BufReader};
+
 #[derive(Clone)]
 pub struct TriangleMesh {
     pub vertices: Vec<Point>,
@@ -98,7 +100,7 @@ impl Rotate for TriangleMesh {
             axis_angle_radians.1,
             axis_angle_radians.2,
         ));
-        self.model_matrix = self.model_matrix * rotation_matrix;
+        self.model_matrix *= rotation_matrix;
 
         self.update_normals_world();
         self.update_vertices_world();
@@ -107,14 +109,39 @@ impl Rotate for TriangleMesh {
 
 impl Scale for TriangleMesh {
     fn scale(&mut self, scaling: f64) {
-        self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
+        self.model_matrix *= Matrix4::new_scaling(scaling);
         self.update_vertices_world()
     }
 }
 
 impl TriangleMesh {
-    fn centerify(&mut self) {
-        let center = center_of_mass(self);
+    /// Вычисляет центр масс полигональной сетки.
+    fn center_of_mass(&self) -> Vector3<f64> {
+        let mut total_area = 0.0;
+        let mut weighted_center = Vector3::zeros();
+
+        for tri in &self.triangles {
+            let v1 = &self.vertices[tri.0];
+            let v2 = &self.vertices[tri.1];
+            let v3 = &self.vertices[tri.2];
+
+            let area = triangle_area(v1, v2, v3);
+            let center = (v1.coords + v2.coords + v3.coords) / 3.0;
+
+            total_area += area;
+            weighted_center += center * area;
+        }
+
+        if total_area > 0.0 {
+            weighted_center / total_area
+        } else {
+            Vector3::zeros()
+        }
+    }
+
+    /// Совместить центр масс фигуры с началом координат
+    fn center(&mut self) {
+        let center = self.center_of_mass();
         for v in &mut self.vertices {
             *v -= center;
         }
@@ -245,7 +272,7 @@ impl TriangleMesh {
             mesh.compute_normals();
         }
 
-        mesh.centerify();
+        mesh.center();
         mesh.vertices_world = mesh.vertices.clone();
         mesh.normals_world = mesh.normals.clone();
 

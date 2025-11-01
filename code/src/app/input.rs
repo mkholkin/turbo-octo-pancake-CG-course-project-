@@ -19,8 +19,8 @@ impl MyEguiApp {
             (1. + scroll_delta.y.max(-200.) * SCALING_SENSITIVITY_FACTOR).max(f32::EPSILON);
 
         // Применяем масштабирование к текущему объекту напрямую
-        if let Some(object) = self.get_current_view_object_mut() {
-            object.scale(scaling_factor.into());
+        if let Some(object) = self.scene.object.as_ref() {
+            object.borrow_mut().scale(scaling_factor.into());
         }
 
         self.needs_redraw = true; // Требуется перерисовка после масштабирования мышью
@@ -42,8 +42,8 @@ impl MyEguiApp {
         let rotation_y = delta.x * ROTATION_SENSITIVITY_FACTOR;
 
         // Применяем поворот к текущему объекту напрямую
-        if let Some(object) = self.get_current_view_object_mut() {
-            object.rotate((
+        if let Some(object) = self.scene.object.as_mut() {
+            object.borrow_mut().rotate((
                 rotation_x.to_radians().into(),
                 rotation_y.to_radians().into(),
                 0.,

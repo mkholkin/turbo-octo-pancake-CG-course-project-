@@ -50,8 +50,8 @@ impl DCEL {
             half_edges.push(he1);
             half_edges.push(he2);
 
-            edge_map.entry(start).or_insert_with(Vec::new).push(he1_idx);
-            edge_map.entry(end).or_insert_with(Vec::new).push(he2_idx);
+            edge_map.entry(start).or_default().push(he1_idx);
+            edge_map.entry(end).or_default().push(he2_idx);
         }
 
         // 2. Сортировка полуребер, исходящих из каждой вершины, по углу наклона.
@@ -71,7 +71,7 @@ impl DCEL {
 
         // 3. Связывание указателей `next` и `prev`.
         // Создаем циклы, которые определяют границы граней.
-        for (_, outgoing_edges_indices) in &edge_map {
+        for outgoing_edges_indices in edge_map.values() {
             // Используем &edge_map, чтобы не перемещать значения
             let n = outgoing_edges_indices.len();
             for i in 0..n {
@@ -178,7 +178,7 @@ impl DCEL {
 
 /// Вычисляет угол направления в касательной плоскости вершины.
 fn tangent_angle(u: &Vector3<f64>, v: &Vector3<f64>, direction: &Vector3<f64>) -> f64 {
-    let x = direction.dot(&u);
-    let y = direction.dot(&v);
+    let x = direction.dot(u);
+    let y = direction.dot(v);
     y.atan2(x)
 }

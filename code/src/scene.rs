@@ -1,10 +1,11 @@
 use crate::objects::camera::Camera;
 use crate::objects::light::LightSource;
 use crate::objects::model3d::InteractiveModel;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Scene {
     pub camera: Camera,
     pub light_source: LightSource,
-    pub active_object_idx: usize,
-    pub objects: Vec<Box<dyn InteractiveModel>>,
+    pub object: Option<Rc<RefCell<dyn InteractiveModel>>>,
 }

@@ -8,13 +8,10 @@ use imageproc::point::Point;
 use imageproc::rect::Rect;
 use nalgebra::{Matrix4, Point3};
 
+#[allow(dead_code)]
 pub struct WireframePerformer;
 impl WireframePerformer {
-    fn draw_object(
-        image: &mut RgbImage,
-        camera: &Camera,
-        model: &dyn Model3D,
-    ) {
+    fn draw_object(image: &mut RgbImage, camera: &Camera, model: &dyn Model3D) {
         let (width, height) = image.dimensions();
         let viewport_matrix = Matrix4::new(
             width as f64 / 2.,

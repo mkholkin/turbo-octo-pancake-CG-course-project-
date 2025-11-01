@@ -1,6 +1,6 @@
 pub mod transparency;
-pub mod z_buffer;
 pub mod wireframe_drawer;
+pub mod z_buffer;
 
 use crate::config::{AMBIENT_INTENSITY, LIGHT_SCATTERING};
 use crate::objects::light::LightSource;
@@ -32,7 +32,7 @@ fn calculate_color(
     light_direction.normalize_mut();
     let view_direction = (eye_pos - surface_point).normalize();
 
-    let reflection_direction = compute_reflection(&light_direction, &normal);
+    let reflection_direction = compute_reflection(&light_direction, normal);
 
     let light_intensity = light_source.intensity / (dist + LIGHT_SCATTERING as f64);
 
@@ -67,11 +67,4 @@ pub trait Renderer {
         image
     }
     fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene);
-    fn render_single_object(
-        &mut self,
-        image: &mut RgbImage,
-        object: &dyn crate::objects::model3d::InteractiveModel,
-        camera: &crate::objects::camera::Camera,
-        light: &LightSource,
-    );
 }

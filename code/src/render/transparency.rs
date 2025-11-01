@@ -1,12 +1,14 @@
+use crate::config::BACKGROUND_COLOR;
 use crate::objects::camera::Camera;
 use crate::objects::light::LightSource;
-use crate::objects::model3d::Model3D;
+use crate::objects::model3d::{InteractiveModel, Model3D};
 use crate::render::Renderer;
 use crate::render::calculate_color;
 use crate::scene::Scene;
 use crate::utils::triangles::barycentric;
 use image::{Rgb, RgbImage};
 use nalgebra::{Matrix4, Point3};
+use std::ops::Deref;
 
 pub struct TransparencyPerformer {}
 
@@ -27,9 +29,7 @@ impl TransparencyPerformer {
         let max_y = p1.y.max(p2.y).max(p3.y).round() as u32;
 
         // Clamp bounding box to image boundaries.
-        let min_x = min_x.max(0);
         let max_x = max_x.min(image.width() - 1);
-        let min_y = min_y.max(0);
         let max_y = max_y.min(image.height() - 1);
 
         for y in min_y..=max_y {
@@ -108,10 +108,10 @@ impl TransparencyPerformer {
             };
 
             let color = calculate_color(
-                &model.material(),
+                model.material(),
                 &normal.xyz(),
                 surface_point,
-                &light_source,
+                light_source,
                 &camera.pos,
             );
 
@@ -129,12 +129,16 @@ impl TransparencyPerformer {
     }
 }
 
-// impl Renderer for TransparencyPerformer {
-//     fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
-//         image.fill(70);
-//
-//         for object in &scene.objects {
-//             self.draw_object(image, &**object, &scene.camera, &scene.light_source)
-//         }
-//     }
-// }
+impl Renderer for TransparencyPerformer {
+    fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
+        image.fill(70);
+        if let Some(object) = scene.object.as_ref() {
+            self.draw_object(
+                image,
+                object.borrow().deref(),
+                &scene.camera,
+                &scene.light_source,
+            );
+        }
+    }
+}

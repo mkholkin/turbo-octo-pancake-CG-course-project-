@@ -1,11 +1,12 @@
 use crate::config::BACKGROUND_COLOR;
 use crate::objects::camera::Camera;
 use crate::objects::light::LightSource;
-use crate::objects::model3d::{InteractiveModel, Model3D};
+use crate::objects::model3d::Model3D;
 use crate::render::{Renderer, calculate_color};
 use crate::scene::Scene;
 use image::{Rgb, RgbImage};
 use nalgebra::{Matrix4, Point3};
+use std::ops::Deref;
 
 #[derive(Default)]
 pub struct ZBufferPerformer {
@@ -92,9 +93,9 @@ impl ZBufferPerformer {
         let [p1, p2, p3] = *tri;
 
         // Находим ограничивающий прямоугольник, ограничивая размерами изображения.
-        let min_x = (p1.x.min(p2.x).min(p3.x).round() as u32).max(0);
+        let min_x = p1.x.min(p2.x).min(p3.x).round() as u32;
         let max_x = (p1.x.max(p2.x).max(p3.x).round() as u32).min(self.width - 1);
-        let min_y = (p1.y.min(p2.y).min(p3.y).round() as u32).max(0);
+        let min_y = p1.y.min(p2.y).min(p3.y).round() as u32;
         let max_y = (p1.y.max(p2.y).max(p3.y).round() as u32).min(self.height - 1);
 
         // Предварительно вычисляем общие компоненты, чтобы избежать избыточных вычислений в цикле.
@@ -151,18 +152,16 @@ impl ZBufferPerformer {
         let viewport_matrix = Self::calculate_viewport_matrix(width, height);
         let mvpv_matrix = viewport_matrix * mvp_matrix;
 
-        let screen_vertices: Vec<Point3<f64>> = Self::transform_vertices_to_screen(
-            model.vertices(),
-            &mvpv_matrix,
-        );
+        let screen_vertices: Vec<Point3<f64>> =
+            Self::transform_vertices_to_screen(model.vertices(), &mvpv_matrix);
 
         for (i, tri) in model.triangles().iter().enumerate() {
             let tri_colors = [tri.0, tri.1, tri.2].map(|v_idx| {
                 calculate_color(
-                    &model.material(),
+                    model.material(),
                     &model.normals()[i].xyz(),
                     &model.vertices_world()[v_idx],
-                    &light_source,
+                    light_source,
                     &camera.pos,
                 )
             });
@@ -183,24 +182,16 @@ impl ZBufferPerformer {
 impl Renderer for ZBufferPerformer {
     fn create_frame_mut(&mut self, image: &mut RgbImage, scene: &Scene) {
         let (width, height) = image.dimensions();
-        self.reset(width, height);
         image.pixels_mut().for_each(|px| *px = BACKGROUND_COLOR);
 
-        for object in &scene.objects {
-            self.draw_object(image, &**object, &scene.camera, &scene.light_source);
+        if let Some(object) = scene.object.as_ref() {
+            self.reset(width, height);
+            self.draw_object(
+                image,
+                object.borrow().deref(),
+                &scene.camera,
+                &scene.light_source,
+            );
         }
-    }
-
-    fn render_single_object(
-        &mut self,
-        image: &mut RgbImage,
-        object: &dyn InteractiveModel,
-        camera: &Camera,
-        light: &LightSource,
-    ) {
-        let (width, height) = image.dimensions();
-        self.reset(width, height);
-        image.pixels_mut().for_each(|px| *px = BACKGROUND_COLOR);
-        self.draw_object(image, object, camera, light);
     }
 }

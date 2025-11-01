@@ -30,6 +30,13 @@ pub fn barycentric(
 
     Vector3::new(u, v, w)
 }
+
+/// Вычисляет площадь треугольника, заданного тремя вершинами.
+pub fn triangle_area(v1: &Point3<f64>, v2: &Point3<f64>, v3: &Point3<f64>) -> f64 {
+    let cross_product = (v2 - v1).cross(&(v3 - v1));
+    0.5 * cross_product.norm()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

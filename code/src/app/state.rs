@@ -1,7 +1,9 @@
 use crate::objects::camera::Camera;
 use crate::objects::triangle_mesh::TriangleMesh;
 use rfd::FileDialog;
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::time::Instant;
 
 use crate::config::{ASPECT_RATIO, BACKGROUND_COLOR, FAR_PLANE, FOV_DEGREES, NEAR_PLANE};
@@ -15,7 +17,6 @@ use eframe::egui::{Context, TextureHandle};
 use image::{Rgb, RgbImage};
 use imageproc::definitions::HasWhite;
 use nalgebra::{Point3, Vector3};
-use crate::render::transparency::TransparencyPerformer;
 
 const IMG_WIDTH: u32 = 2000;
 const IMG_HEIGHT: u32 = 2000;
@@ -30,7 +31,6 @@ pub enum ViewMode {
 pub struct MyEguiApp {
     pub texture: Option<TextureHandle>,
     pub frame: RgbImage,
-    pub scene: Scene,
     pub renderer: Box<dyn Renderer>,
 
     pub fps: f64,
@@ -44,9 +44,9 @@ pub struct MyEguiApp {
     pub viewport_has_pointer: bool,
 
     // Object states
-    pub source_mesh: Option<TriangleMesh>,
-    pub target_mesh: Option<TriangleMesh>,
-    pub morph_object: Option<Morph>,
+    pub source_mesh: Option<Rc<RefCell<TriangleMesh>>>,
+    pub target_mesh: Option<Rc<RefCell<TriangleMesh>>>,
+    pub morph_object: Option<Rc<RefCell<Morph>>>,
     pub morph_created: bool,
 
     // Morph animation state
@@ -61,6 +61,9 @@ pub struct MyEguiApp {
     // Текущие размеры viewport
     pub viewport_width: u32,
     pub viewport_height: u32,
+
+    // Сцена
+    pub scene: Scene,
 }
 
 impl Default for MyEguiApp {
@@ -80,12 +83,10 @@ impl Default for MyEguiApp {
             color: Rgb::white(),
         };
 
-        // Создаем пустую сцену изначально
         let scene = Scene {
             camera,
             light_source,
-            active_object_idx: 0,
-            objects: vec![],
+            object: None,
         };
 
         Self {
@@ -93,7 +94,6 @@ impl Default for MyEguiApp {
             frame: RgbImage::from_pixel(IMG_WIDTH, IMG_HEIGHT, BACKGROUND_COLOR),
             scene,
             renderer: Box::new(ZBufferPerformer::new(IMG_WIDTH, IMG_HEIGHT)),
-            // renderer: Box::new(TransparencyPerformer {}),
             fps: 0.0,
             last_frame_time: Instant::now(),
             selected_source_file: String::new(),
@@ -114,96 +114,17 @@ impl Default for MyEguiApp {
 }
 
 impl MyEguiApp {
-    pub(super) fn get_current_view_object(&self) -> Option<&dyn InteractiveModel> {
-        match self.view_mode {
-            ViewMode::Source => self
-                .source_mesh
-                .as_ref()
-                .map(|mesh| mesh as &dyn InteractiveModel),
-            ViewMode::Target => self
-                .target_mesh
-                .as_ref()
-                .map(|mesh| mesh as &dyn InteractiveModel),
-            ViewMode::Morph => self
-                .morph_object
-                .as_ref()
-                .map(|morph| morph as &dyn InteractiveModel),
-        }
-    }
-
-    pub(super) fn get_current_view_object_mut(&mut self) -> Option<&mut dyn InteractiveModel> {
-        match self.view_mode {
-            ViewMode::Source => self
-                .source_mesh
-                .as_mut()
-                .map(|mesh| mesh as &mut dyn InteractiveModel),
-            ViewMode::Target => self
-                .target_mesh
-                .as_mut()
-                .map(|mesh| mesh as &mut dyn InteractiveModel),
-            ViewMode::Morph => self
-                .morph_object
-                .as_mut()
-                .map(|morph| morph as &mut dyn InteractiveModel),
-        }
-    }
-
     pub fn update_frame(&mut self, ctx: &Context) {
         // Проверяем, нужно ли перерисовывать кадр
         if !self.needs_redraw {
-            // Если перерисовка не нужна, просто обновляем текстуру если она есть
             if self.texture.is_some() {
                 return;
             }
-            // Если текстуры нет, нужно её создать
             self.needs_redraw = true;
         }
 
-        // Рендерим объект в зависимости от режима просмотра
-        match self.view_mode {
-            ViewMode::Source => {
-                if let Some(ref mesh) = self.source_mesh {
-                    self.renderer.render_single_object(
-                        &mut self.frame,
-                        mesh,
-                        &self.scene.camera,
-                        &self.scene.light_source,
-                    );
-                } else {
-                    self.frame
-                        .pixels_mut()
-                        .for_each(|px| *px = BACKGROUND_COLOR);
-                }
-            }
-            ViewMode::Target => {
-                if let Some(ref mesh) = self.target_mesh {
-                    self.renderer.render_single_object(
-                        &mut self.frame,
-                        mesh,
-                        &self.scene.camera,
-                        &self.scene.light_source,
-                    );
-                } else {
-                    self.frame
-                        .pixels_mut()
-                        .for_each(|px| *px = BACKGROUND_COLOR);
-                }
-            }
-            ViewMode::Morph => {
-                if let Some(ref morph) = self.morph_object {
-                    self.renderer.render_single_object(
-                        &mut self.frame,
-                        morph,
-                        &self.scene.camera,
-                        &self.scene.light_source,
-                    );
-                } else {
-                    self.frame
-                        .pixels_mut()
-                        .for_each(|px| *px = BACKGROUND_COLOR);
-                }
-            }
-        }
+        // Рендерим сцену
+        self.renderer.create_frame_mut(&mut self.frame, &self.scene);
 
         let egui_image = egui::ColorImage::from_rgb(
             [self.frame.width() as usize, self.frame.height() as usize],
@@ -219,7 +140,6 @@ impl MyEguiApp {
                 .set(egui_image, Default::default());
         }
 
-        // Сбрасываем флаг после перерисовки
         self.needs_redraw = false;
     }
 
@@ -234,19 +154,18 @@ impl MyEguiApp {
         match TriangleMesh::from_obj(file_path) {
             Ok(mesh) => {
                 if is_target {
-                    self.target_mesh = Some(mesh);
+                    self.target_mesh = Some(Rc::new(RefCell::new(mesh)));
                     if let Some(file_name) = PathBuf::from(file_path).file_name() {
                         self.selected_target_file = file_name.to_string_lossy().to_string();
                     }
                 } else {
-                    self.source_mesh = Some(mesh);
+                    self.source_mesh = Some(Rc::new(RefCell::new(mesh)));
                     if let Some(file_name) = PathBuf::from(file_path).file_name() {
                         self.selected_source_file = file_name.to_string_lossy().to_string();
                     }
                 }
-                self.update_scene_objects();
                 self.morph_created = false;
-                self.needs_redraw = true; // Требуется перерисовка после загрузки модели
+                self.update_scene_object();
             }
             Err(e) => {
                 eprintln!("Ошибка загрузки модели {}: {}", file_path, e);
@@ -258,7 +177,7 @@ impl MyEguiApp {
     pub fn open_file_dialog(&mut self, is_target: bool) {
         if let Some(path) = FileDialog::new()
             .add_filter("OBJ файлы", &["obj"])
-            .set_directory("./code/data")
+            .set_directory("./code/models")
             .pick_file()
         {
             let path_str = path.to_string_lossy().to_string();
@@ -267,49 +186,48 @@ impl MyEguiApp {
     }
 
     pub fn create_morph_object(&mut self) {
-        if let (Some(source), Some(target)) = (&self.source_mesh, &self.target_mesh) {
-            match Morph::new(source.clone(), target.clone()) {
-                Ok(morph) => {
-                    self.morph_object = Some(morph);
-                    self.morph_created = true;
-                    self.morph_phase = 0.0; // Сброс фазы морфинга
-                    self.update_scene_objects();
-                    self.needs_redraw = true; // Требуется перерисовка после создания морфинга
-                }
-                Err(e) => {
-                    eprintln!("Ошибка создания морфинга: {}", e);
-                    self.error_message = Some(
-                        "Не удалось создать морфинг: сетка повреждена или не замкнута)".into(),
-                    );
-                    self.morph_created = false;
-                }
+        if self.source_mesh.is_none() || self.target_mesh.is_none() {
+            return;
+        }
+
+        let source_mesh = self.source_mesh.as_ref().unwrap().borrow().clone();
+        let target_mesh = self.target_mesh.as_ref().unwrap().borrow().clone();
+
+        match Morph::new(source_mesh, target_mesh) {
+            Ok(morph) => {
+                self.morph_object = Some(Rc::new(RefCell::new(morph)));
+                self.morph_created = true;
+                self.morph_phase = 0.0; // Сброс фазы морфинга
+                self.update_scene_object();
+            }
+            Err(e) => {
+                eprintln!("Ошибка создания морфинга: {}", e);
+                self.error_message =
+                    Some("Не удалось создать морфинг: сетка повреждена или не замкнута)".into());
+                self.morph_created = false;
             }
         }
     }
 
-    pub fn update_scene_objects(&mut self) {
-        self.scene.objects.clear();
-        self.scene.active_object_idx = 0;
-    }
-
     pub fn reset_current_object(&mut self) {
-        let object_to_reset = self.get_current_view_object_mut();
-        if let Some(object_to_reset) = object_to_reset {
-            object_to_reset.reset_transformations();
+        if let Some(object_to_reset) = self.scene.object.as_ref() {
+            object_to_reset.borrow_mut().reset_transformations();
         }
         self.needs_redraw = true; // Требуется перерисовка после сброса трансформаций
     }
 
     pub fn apply_button_rotation(&mut self, x: f64, y: f64, z: f64) {
-        if let Some(object) = self.get_current_view_object_mut() {
-            object.rotate((x.to_radians(), y.to_radians(), z.to_radians()));
+        if let Some(object) = self.scene.object.as_ref() {
+            object
+                .borrow_mut()
+                .rotate((x.to_radians(), y.to_radians(), z.to_radians()));
         }
         self.needs_redraw = true; // Требуется перерисовка после поворота
     }
 
     pub fn apply_button_scale(&mut self, factor: f64) {
-        if let Some(object) = self.get_current_view_object_mut() {
-            object.scale(factor);
+        if let Some(object) = self.scene.object.as_ref() {
+            object.borrow_mut().scale(factor);
         }
         self.needs_redraw = true; // Требуется перерисовка после масштабирования
     }
@@ -331,12 +249,39 @@ impl MyEguiApp {
                 Vector3::new(0.0, 1.0, 0.0),
                 FOV_DEGREES.to_radians(),
                 new_aspect_ratio,
-                NEAR_PLANE.into(),
+                NEAR_PLANE,
                 FAR_PLANE,
             );
 
             // Помечаем что нужна перерисовка
             self.needs_redraw = true;
         }
+    }
+
+    /// Устанавливает новый режим просмотра и помечает необходимость перерисо��ки
+    pub fn set_view_mode(&mut self, new_mode: ViewMode) {
+        if self.view_mode != new_mode {
+            self.view_mode = new_mode;
+            self.update_scene_object();
+        }
+    }
+
+    pub fn update_scene_object(&mut self) {
+        let object_to_set = match self.view_mode {
+            ViewMode::Source => self
+                .source_mesh
+                .as_ref()
+                .map(|rc| rc.clone() as Rc<RefCell<dyn InteractiveModel>>),
+            ViewMode::Target => self
+                .target_mesh
+                .as_ref()
+                .map(|rc| rc.clone() as Rc<RefCell<dyn InteractiveModel>>),
+            ViewMode::Morph => self
+                .morph_object
+                .as_ref()
+                .map(|rc| rc.clone() as Rc<RefCell<dyn InteractiveModel>>),
+        };
+        self.scene.object = object_to_set;
+        self.needs_redraw = true;
     }
 }

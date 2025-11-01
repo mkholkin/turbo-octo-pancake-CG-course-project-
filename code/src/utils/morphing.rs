@@ -14,38 +14,6 @@ const VERTEX_MATCH_EPS: f64 = 1e-6;
 
 type Segment = [usize; 2];
 
-/// Вычисляет площадь треугольника, заданного тремя вершинами.
-fn triangle_area(v1: &Point3<f64>, v2: &Point3<f64>, v3: &Point3<f64>) -> f64 {
-    let cross_product = (v2 - v1).cross(&(v3 - v1));
-    0.5 * cross_product.norm()
-}
-
-/// Вычисляет центр масс полигональной сетки.
-pub fn center_of_mass(mesh: &TriangleMesh) -> Vector3<f64> {
-    // TODO: работа с вершинами в координатах мира (пос��е трансформаций)
-
-    let mut total_area = 0.0;
-    let mut weighted_center = Vector3::zeros();
-
-    for tri in mesh.triangles() {
-        let v1 = &mesh.vertices()[tri.0];
-        let v2 = &mesh.vertices()[tri.1];
-        let v3 = &mesh.vertices()[tri.2];
-
-        let area = triangle_area(v1, v2, v3);
-        let center = (v1.coords + v2.coords + v3.coords) / 3.0;
-
-        total_area += area;
-        weighted_center += center * area;
-    }
-
-    if total_area > 0.0 {
-        weighted_center / total_area
-    } else {
-        Vector3::zeros()
-    }
-}
-
 fn collect_neighbors(mesh: &TriangleMesh) -> Vec<HashSet<usize>> {
     let mut neighbors = vec![HashSet::new(); mesh.vertices().len()];
 
@@ -58,7 +26,7 @@ fn collect_neighbors(mesh: &TriangleMesh) -> Vec<HashSet<usize>> {
     neighbors
 }
 
-fn get_orientations(vertices: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Vec<f64> {
+fn get_orientations(vertices: &[Vertex], triangles: &[Triangle]) -> Vec<f64> {
     triangles
         .iter()
         .map(|tri| {
@@ -71,7 +39,7 @@ fn get_orientations(vertices: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Vec<f6
         .collect()
 }
 
-fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<f64>) {
+fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &[f64]) {
     let epsilon_threshold = 1e-2;
 
     let neighbors = collect_neighbors(parametrized_mesh);
@@ -90,29 +58,27 @@ fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &Vec<
         let prev_vertices = parametrized_mesh.vertices_world().clone();
 
         // 2. Выполняем один раунд релаксации
-        {
-            let vertices = parametrized_mesh.vertices_world_mut();
+        let vertices = parametrized_mesh.vertices_world_mut();
 
-            for i in 0..vertices.len() {
-                let new_pos = neighbors[i]
-                    .iter()
-                    .map(|neighbor_idx| prev_vertices[*neighbor_idx].coords)
-                    .sum::<Vector3<f64>>()
-                    .normalize();
-                vertices[i] = Vertex::from(new_pos);
-            }
-
-            // Достигнут эпсилон-порог (вершины почти не сдвинулись)
-            epsilon_reached = prev_vertices
+        for i in 0..vertices.len() {
+            let new_pos = neighbors[i]
                 .iter()
-                .zip(vertices.iter())
-                .all(|(prev, curr)| (prev - curr).norm() < epsilon_threshold);
-
-            // Центрирование сферы для избежания коллапса вершин
-            let mean: Vector3<f64> =
-                vertices.iter().map(|v| v.coords).sum::<Vector3<f64>>() / vertices.len() as f64;
-            vertices.iter_mut().for_each(|v| *v -= mean);
+                .map(|neighbor_idx| prev_vertices[*neighbor_idx].coords)
+                .sum::<Vector3<f64>>()
+                .normalize();
+            vertices[i] = Vertex::from(new_pos);
         }
+
+        // Достигнут эпсилон-порог (вершины почти не сдвинулись)
+        epsilon_reached = prev_vertices
+            .iter()
+            .zip(vertices.iter())
+            .all(|(prev, curr)| (prev - curr).norm() < epsilon_threshold);
+
+        // Центрирование сферы для избежания коллапса вершин
+        let mean: Vector3<f64> =
+            vertices.iter().map(|v| v.coords).sum::<Vector3<f64>>() / vertices.len() as f64;
+        vertices.iter_mut().for_each(|v| *v -= mean);
 
         // Главное условие остановки: Ориентации граней совпадают с оригинальными (нет вывернутых граней)
         orientations = get_orientations(
@@ -171,10 +137,7 @@ fn find_inner_point(mesh: &TriangleMesh) -> Option<Vertex> {
     });
 
     // 4. Возвращаем точку посередине между источником луча и ближайшей точкой пересечения
-    match closest_intersection {
-        Some(point) => Some(Vertex::from((ray_origin + point.coords) / 2.0)),
-        None => None,
-    }
+    closest_intersection.map(|point| Vertex::from((ray_origin + point.coords) / 2.0))
 }
 
 pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
@@ -184,7 +147,7 @@ pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
     }
 
     let vertices_world = mesh.vertices_world();
-    let original_orientations = izip!(mesh.triangles(), mesh.normals())
+    let original_orientations: Vec<f64> = izip!(mesh.triangles(), mesh.normals())
         .map(|(tri, normal)| {
             let origin = vertices_world[tri.0].coords - normal.xyz();
             let v0 = vertices_world[tri.0].coords - origin;
@@ -203,7 +166,7 @@ pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
 /// Checks if a point `p` is on the arc between points `start` and `end`.
 /// All points are expected to be on the unit sphere.
 fn is_on_arc(p: &Point3<f64>, start: &Point3<f64>, end: &Point3<f64>) -> bool {
-    const ON_ARC_EPSILON: f64 = 1e-11;
+    const ON_ARC_EPSILON: f64 = 1e-10;
     let p_vec = p.coords.normalize();
     let start_vec = start.coords.normalize();
     let end_vec = end.coords.normalize();
@@ -338,14 +301,9 @@ fn find_vertices_on_edges(
             let end = &all_vertices[segment[1]];
 
             // Проверяем, лежит ли вершина на этой дуге
-            if is_on_arc(vertex, start, end)
-                && vertex_idx != segment[0]
-                && vertex_idx != segment[1]
+            if is_on_arc(vertex, start, end) && vertex_idx != segment[0] && vertex_idx != segment[1]
             {
-                segment_map
-                    .entry(segment)
-                    .or_insert_with(HashSet::new)
-                    .insert(vertex_idx);
+                segment_map.entry(segment).or_default().insert(vertex_idx);
             }
         }
     }
@@ -387,10 +345,10 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<D
 
     // Добавляем все отрезки в ассоциативный массив
     for &s in &segments_a {
-        segment_map.entry(s).or_insert_with(HashSet::new);
+        segment_map.entry(s).or_default();
     }
     for &s in &segments_b {
-        segment_map.entry(s).or_insert_with(HashSet::new);
+        segment_map.entry(s).or_default();
     }
 
     // 4. Находим вершины, которые лежат на рёбрах другой сетки
@@ -462,10 +420,10 @@ pub fn create_dcel_map(mesh_a: &TriangleMesh, mesh_b: &TriangleMesh) -> Result<D
         }
     }
 
-    Ok(DCEL::new(all_vertices, all_segments)?)
+    DCEL::new(all_vertices, all_segments)
 }
 
-/// Триангулирует плоскую грань многогранника с использованием триангуляции Делоне.
+/// Треангулирует плоскую грань многогранника с использованием триангуляции Делоне.
 fn triangulate_face(face_vertices: &Vec<&Vertex>) -> Result<Vec<usize>, Box<dyn Error>> {
     // Проверка минимального количества вершин
     if face_vertices.len() < 3 {
@@ -541,8 +499,8 @@ fn triangulate_face(face_vertices: &Vec<&Vertex>) -> Result<Vec<usize>, Box<dyn 
     for v in face_vertices {
         let vec_from_origin = v.coords - origin;
         let point = Point {
-            x: vec_from_origin.dot(&u_vec).into(),
-            y: vec_from_origin.dot(&v_vec).into(),
+            x: vec_from_origin.dot(&u_vec),
+            y: vec_from_origin.dot(&v_vec),
         };
 
         projected_points_2d.push(point);
@@ -603,7 +561,10 @@ pub fn create_supermesh(
 
 // Найти треугольник на сетке, которому принадлежит точка.
 // Возвращает индекс треугольника и барицентрические координаты точки в этом треугольнике.
-fn find_enclosing_triangle(p: &Vertex, mesh: &TriangleMesh) -> (usize, Vector3<f64>) {
+fn find_enclosing_triangle(
+    p: &Vertex,
+    mesh: &TriangleMesh,
+) -> Result<(usize, Vector3<f64>), String> {
     let mesh_vertices = mesh.vertices_world();
 
     for (i, tri) in mesh.triangles().iter().enumerate() {
@@ -638,26 +599,26 @@ fn find_enclosing_triangle(p: &Vertex, mesh: &TriangleMesh) -> (usize, Vector3<f
         }
 
         // 3. Определяем принадлежность точки треугольнику по барицентрическим координатам
-        let bary = barycentric(&projected_point, &v0, &v1, &v2);
+        let bary = barycentric(&projected_point, v0, v1, v2);
 
         if bary.iter().all(|&coord| coord > -1e-12) {
-            return (i, bary);
+            return Ok((i, bary));
         }
     }
 
-    panic!("No triangle found. This should not happen for a closed mesh on a sphere.");
+    Err("Не найден треугольник, содержащий точку. Возможно, сетка не замкнута или точка находится вне сетки.".to_string())
 }
 
 // Расположить рассчитать реальные координаты точке на сетке объекта
 pub fn relocate_vertices_on_mesh(
-    parametrized_vertices: &Vec<Vertex>,
+    parametrized_vertices: &[Vertex],
     parametrized_mesh: &TriangleMesh,
-    real_vertices: &Vec<Vertex>,
-) -> Vec<Vertex> {
+    real_vertices: &[Vertex],
+) -> Result<Vec<Vertex>, String> {
     let mut relocated_vertices = Vec::new();
 
     for v in parametrized_vertices {
-        let (tri_idx, bary) = find_enclosing_triangle(&v, parametrized_mesh);
+        let (tri_idx, bary) = find_enclosing_triangle(v, parametrized_mesh)?;
         let tri = parametrized_mesh.triangles()[tri_idx];
 
         relocated_vertices.push(Vertex::from(
@@ -667,15 +628,15 @@ pub fn relocate_vertices_on_mesh(
         ));
     }
 
-    relocated_vertices
+    Ok(relocated_vertices)
 }
 
 pub fn find_normals(
-    parametrized_vertices: &Vec<Vertex>,
-    triangles: &Vec<Triangle>,
+    parametrized_vertices: &[Vertex],
+    triangles: &[Triangle],
     parametrized_mesh: &TriangleMesh,
     normals: &[Vector4<f64>],
-) -> Vec<Vector4<f64>> {
+) -> Result<Vec<Vector4<f64>>, String> {
     let mut result_normals = Vec::new();
 
     for tri in triangles {
@@ -686,9 +647,9 @@ pub fn find_normals(
                 / 3.,
         );
 
-        let (tri_idx, _) = find_enclosing_triangle(&center, parametrized_mesh);
+        let (tri_idx, _) = find_enclosing_triangle(&center, parametrized_mesh)?;
         result_normals.push(normals[tri_idx]);
     }
 
-    result_normals
+    Ok(result_normals)
 }

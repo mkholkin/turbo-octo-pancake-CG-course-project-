@@ -1,7 +1,7 @@
 use super::state::{MyEguiApp, ViewMode};
 use crate::objects::model3d;
 use crate::objects::model3d::Model3D;
-use eframe::egui::{Context, SidePanel, CentralPanel, Ui, Vec2, Color32, ScrollArea};
+use eframe::egui::{CentralPanel, Color32, Context, ScrollArea, SidePanel, Ui, Vec2};
 
 impl MyEguiApp {
     pub fn render_ui(&mut self, ctx: &Context) {
@@ -62,7 +62,10 @@ impl MyEguiApp {
                 .show(ctx, |ui| {
                     ui.label(error_msg);
                     ui.separator();
-                    if self.styled_button(ui, "OK", Vec2::new(120.0, 32.0)).clicked() {
+                    if self
+                        .styled_button(ui, "OK", Vec2::new(120.0, 32.0))
+                        .clicked()
+                    {
                         self.error_message = None;
                     }
                 });
@@ -117,15 +120,22 @@ impl MyEguiApp {
         ui.group(|ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                ui.label("Исходный объект:");
-                ui.add_space(5.0);
+                    ui.label("Исходный объект:");
+                    ui.add_space(5.0);
                     if !self.selected_source_file.is_empty() {
-                        ui.label(format!("{}", self.selected_source_file));
+                        ui.label(self.selected_source_file.to_string());
                     }
                 });
 
                 // Кнопка для выбора любого файла
-                if self.styled_button(ui, "📁 Выбрать файл...", Vec2::new(ui.available_width(), 36.0)).clicked() {
+                if self
+                    .styled_button(
+                        ui,
+                        "📁 Выбрать файл...",
+                        Vec2::new(ui.available_width(), 36.0),
+                    )
+                    .clicked()
+                {
                     self.open_file_dialog(false);
                 }
             });
@@ -140,12 +150,19 @@ impl MyEguiApp {
                     ui.label("Целевой объект:");
                     ui.add_space(5.0);
                     if !self.selected_target_file.is_empty() {
-                        ui.label(format!("{}", self.selected_target_file));
+                        ui.label(self.selected_target_file.to_string());
                     }
                 });
 
                 // Кнопка для выбора любого файла
-                if self.styled_button(ui, "📁 Выбрать файл...", Vec2::new(ui.available_width(), 36.0)).clicked() {
+                if self
+                    .styled_button(
+                        ui,
+                        "📁 Выбрать файл...",
+                        Vec2::new(ui.available_width(), 36.0),
+                    )
+                    .clicked()
+                {
                     self.open_file_dialog(true);
                 }
             });
@@ -157,13 +174,16 @@ impl MyEguiApp {
         ui.add_space(10.0);
 
         let can_create_morph = self.source_mesh.is_some() && self.target_mesh.is_some();
-        let button_text = if self.morph_created { "🔄 Пересоздать морфинг" } else { "✨ Создать морфинг" };
+        let button_text = if self.morph_created {
+            "🔄 Пересоздать морфинг"
+        } else {
+            "✨ Создать морфинг"
+        };
 
         ui.vertical(|ui| {
             let response = ui.add_enabled(
                 can_create_morph,
-                egui::Button::new(button_text)
-                    .min_size(Vec2::new(ui.available_width(), 40.0))
+                egui::Button::new(button_text).min_size(Vec2::new(ui.available_width(), 40.0)),
             );
 
             if response.clicked() {
@@ -190,7 +210,10 @@ impl MyEguiApp {
         };
 
         if !has_object {
-            ui.colored_label(Color32::from_rgb(200, 100, 100), "⚠ Загрузите объект для управления");
+            ui.colored_label(
+                Color32::from_rgb(200, 100, 100),
+                "⚠ Загрузите объект для управления",
+            );
             return;
         }
 
@@ -201,28 +224,46 @@ impl MyEguiApp {
                 ui.add_space(5.0);
 
                 ui.horizontal(|ui| {
-                    if self.styled_button(ui, "↺ X +15°", Vec2::new(140.0, 32.0)).clicked() {
+                    if self
+                        .styled_button(ui, "↺ X +15°", Vec2::new(140.0, 32.0))
+                        .clicked()
+                    {
                         self.apply_button_rotation(15.0, 0.0, 0.0);
                     }
-                    if self.styled_button(ui, "↻ X -15°", Vec2::new(140.0, 32.0)).clicked() {
+                    if self
+                        .styled_button(ui, "↻ X -15°", Vec2::new(140.0, 32.0))
+                        .clicked()
+                    {
                         self.apply_button_rotation(-15.0, 0.0, 0.0);
                     }
                 });
 
                 ui.horizontal(|ui| {
-                    if self.styled_button(ui, "↺ Y +15°", Vec2::new(140.0, 32.0)).clicked() {
+                    if self
+                        .styled_button(ui, "↺ Y +15°", Vec2::new(140.0, 32.0))
+                        .clicked()
+                    {
                         self.apply_button_rotation(0.0, 15.0, 0.0);
                     }
-                    if self.styled_button(ui, "↻ Y -15°", Vec2::new(140.0, 32.0)).clicked() {
+                    if self
+                        .styled_button(ui, "↻ Y -15°", Vec2::new(140.0, 32.0))
+                        .clicked()
+                    {
                         self.apply_button_rotation(0.0, -15.0, 0.0);
                     }
                 });
 
                 ui.horizontal(|ui| {
-                    if self.styled_button(ui, "↺ Z +15°", Vec2::new(140.0, 32.0)).clicked() {
+                    if self
+                        .styled_button(ui, "↺ Z +15°", Vec2::new(140.0, 32.0))
+                        .clicked()
+                    {
                         self.apply_button_rotation(0.0, 0.0, 15.0);
                     }
-                    if self.styled_button(ui, "↻ Z -15°", Vec2::new(140.0, 32.0)).clicked() {
+                    if self
+                        .styled_button(ui, "↻ Z -15°", Vec2::new(140.0, 32.0))
+                        .clicked()
+                    {
                         self.apply_button_rotation(0.0, 0.0, -15.0);
                     }
                 });
@@ -238,10 +279,16 @@ impl MyEguiApp {
                 ui.add_space(5.0);
 
                 ui.horizontal(|ui| {
-                    if self.styled_button(ui, "➕ Увеличить x1.1", Vec2::new(140.0, 32.0)).clicked() {
+                    if self
+                        .styled_button(ui, "➕ Увеличить x1.1", Vec2::new(140.0, 32.0))
+                        .clicked()
+                    {
                         self.apply_button_scale(1.1);
                     }
-                    if self.styled_button(ui, "➖ Уменьшить x0.9", Vec2::new(140.0, 32.0)).clicked() {
+                    if self
+                        .styled_button(ui, "➖ Уменьшить x0.9", Vec2::new(140.0, 32.0))
+                        .clicked()
+                    {
                         self.apply_button_scale(0.9);
                     }
                 });
@@ -251,7 +298,14 @@ impl MyEguiApp {
         ui.add_space(8.0);
 
         // Кнопка сброса
-        if self.styled_button(ui, "🔄 Сбросить преобразования", Vec2::new(ui.available_width(), 36.0)).clicked() {
+        if self
+            .styled_button(
+                ui,
+                "🔄 Сбросить преобразования",
+                Vec2::new(ui.available_width(), 36.0),
+            )
+            .clicked()
+        {
             self.reset_current_object();
         }
     }
@@ -286,7 +340,8 @@ impl MyEguiApp {
 
             // Кнопка морфинга - добавляем enabled wrapper
             ui.add_enabled_ui(self.morph_created, |ui| {
-                let response = ui.selectable_value(&mut self.view_mode, ViewMode::Morph, "✨ Морфинг");
+                let response =
+                    ui.selectable_value(&mut self.view_mode, ViewMode::Morph, "✨ Морфинг");
 
                 if !self.morph_created {
                     response.on_disabled_hover_text("Создайте морфинг для активации");
@@ -296,8 +351,7 @@ impl MyEguiApp {
 
         // Обновляем объекты сцены при смене режима
         if old_view_mode != self.view_mode {
-            self.update_scene_objects();
-            self.needs_redraw = true; // Требуется перерисовка при смене режима просмотра
+            self.update_scene_object();
         }
     }
 
@@ -311,23 +365,23 @@ impl MyEguiApp {
                     ui.label("⏱ Управление морфингом:");
                     ui.add_space(8.0);
 
-                    // Ползунок для управления фазой морфинга
+                    // Ползунок для управления стадией морфинга
                     let old_phase = self.morph_phase;
                     ui.vertical(|ui| {
-                        ui.label("Фаза:");
+                        ui.label("Стадия:");
                         ui.add_space(3.0);
                         ui.add_sized(
                             Vec2::new(ui.available_width(), 20.0),
                             egui::Slider::new(&mut self.morph_phase, 0.0..=1.0)
                                 .step_by(0.01)
-                                .fixed_decimals(2)
+                                .fixed_decimals(2),
                         );
                     });
 
                     // Обновляем морф-объект, если фаза изменилась
                     if (old_phase - self.morph_phase).abs() > f64::EPSILON {
-                        if let Some(ref mut morph) = self.morph_object {
-                            morph.update(self.morph_phase);
+                        if let Some(ref morph) = self.morph_object {
+                            morph.borrow_mut().update(self.morph_phase);
                         }
                         self.needs_redraw = true; // Требуется перерисовка при изменении фазы морфинга
                     }
@@ -339,7 +393,7 @@ impl MyEguiApp {
     fn render_viewport(&mut self, ui: &mut Ui) {
         ui.separator();
 
-        // Получаем до��тупное пространство для viewport
+        // Получаем дотупное пространство для viewport
         let available_size = ui.available_size();
 
         // Вычисляем максимально возможный размер изображения в пикселях
@@ -385,30 +439,35 @@ impl MyEguiApp {
                         ui.vertical(|ui| {
                             ui.label("Исходный объект:");
                             ui.add_space(5.0);
-                            material_changed = Self::render_material_sliders_static(ui, &mut mesh.material);
+                            material_changed = Self::render_material_sliders_static(
+                                ui,
+                                &mut mesh.borrow_mut().material,
+                            );
                         });
                     });
                 }
-            },
+            }
             ViewMode::Target => {
                 if let Some(ref mut mesh) = self.target_mesh {
                     ui.group(|ui| {
                         ui.vertical(|ui| {
                             ui.label("Целевой объект:");
                             ui.add_space(5.0);
-                            material_changed = Self::render_material_sliders_static(ui, &mut mesh.material);
+                            material_changed = Self::render_material_sliders_static(
+                                ui,
+                                &mut mesh.borrow_mut().material,
+                            );
                         });
                     });
                 }
-            },
+            }
             ViewMode::Morph => {
                 // В режиме морфинга не показываем редактирование материала
-            },
+            }
         }
 
         // Обновляем сцену после изменений, если были изменения
         if material_changed {
-            self.update_scene_objects();
             self.needs_redraw = true; // Требуется перерисовка при изменении материала
         }
     }
@@ -439,12 +498,15 @@ impl MyEguiApp {
         ui.vertical(|ui| {
             ui.label("Диффузное отражение:");
             ui.add_space(3.0);
-            if ui.add_sized(
-                Vec2::new(ui.available_width(), 20.0),
-                egui::Slider::new(&mut material.diffuse_reflectance_factor, 0.0..=1.0)
-                    .step_by(0.01)
-                    .fixed_decimals(2)
-            ).changed() {
+            if ui
+                .add_sized(
+                    Vec2::new(ui.available_width(), 20.0),
+                    egui::Slider::new(&mut material.diffuse_reflectance_factor, 0.0..=1.0)
+                        .step_by(0.01)
+                        .fixed_decimals(2),
+                )
+                .changed()
+            {
                 changed = true;
             }
         });
@@ -454,12 +516,15 @@ impl MyEguiApp {
         ui.vertical(|ui| {
             ui.label("Зеркальное отражение:");
             ui.add_space(3.0);
-            if ui.add_sized(
-                Vec2::new(ui.available_width(), 20.0),
-                egui::Slider::new(&mut material.specular_reflectance_factor, 0.0..=1.0)
-                    .step_by(0.01)
-                    .fixed_decimals(2)
-            ).changed() {
+            if ui
+                .add_sized(
+                    Vec2::new(ui.available_width(), 20.0),
+                    egui::Slider::new(&mut material.specular_reflectance_factor, 0.0..=1.0)
+                        .step_by(0.01)
+                        .fixed_decimals(2),
+                )
+                .changed()
+            {
                 changed = true;
             }
         });
@@ -469,12 +534,15 @@ impl MyEguiApp {
         ui.vertical(|ui| {
             ui.label("Глянцевость:");
             ui.add_space(3.0);
-            if ui.add_sized(
-                Vec2::new(ui.available_width(), 20.0),
-                egui::Slider::new(&mut material.gloss, 0.1..=15.0)
-                    .step_by(0.01)
-                    .fixed_decimals(2)
-            ).changed() {
+            if ui
+                .add_sized(
+                    Vec2::new(ui.available_width(), 20.0),
+                    egui::Slider::new(&mut material.gloss, 0.1..=15.0)
+                        .step_by(0.01)
+                        .fixed_decimals(2),
+                )
+                .changed()
+            {
                 changed = true;
             }
         });

@@ -3,8 +3,7 @@ use crate::objects::model3d::{InteractiveModel, Material, Model3D, Rotate, Scale
 use crate::objects::triangle_mesh::TriangleMesh;
 use crate::utils::math::lerp;
 use crate::utils::morphing::{
-    create_dcel_map, create_supermesh, find_normals, parametrize_mesh, relocate_vertices_on_mesh,
-    triangulate_dcel,
+    create_supermesh, find_normals, parametrize_mesh, relocate_vertices_on_mesh,
 };
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
@@ -46,25 +45,25 @@ impl Morph {
             &vertices,
             &parametrized_source_mesh,
             source_object.vertices_world(),
-        );
+        )?;
         let dst_vertices = relocate_vertices_on_mesh(
             &vertices,
             &parametrized_target_mesh,
             target_object.vertices_world(),
-        );
+        )?;
 
         let src_normals = find_normals(
             &vertices,
             &triangles,
             &parametrized_source_mesh,
             source_object.normals(),
-        );
+        )?;
         let dst_normals = find_normals(
             &vertices,
             &triangles,
             &parametrized_target_mesh,
             target_object.normals(),
-        );
+        )?;
 
         // 4. Строим интерполяции
         let vertex_interpolations: Vec<VertexInterpolation> = src_vertices
@@ -173,7 +172,6 @@ impl Model3D for Morph {
         // Рассчитать нормали
         for i in 0..self.normals.len() {
             self.normals[i] = self.normals_interpolations[i](t);
-            self.normals[i];
         }
 
         self.update_vertices_world();
@@ -191,7 +189,7 @@ impl Rotate for Morph {
             axis_angle_radians.1,
             axis_angle_radians.2,
         ));
-        self.model_matrix = self.model_matrix * rotation_matrix;
+        self.model_matrix *= rotation_matrix;
 
         self.update_vertices_world();
         self.update_normals_world();
@@ -200,7 +198,7 @@ impl Rotate for Morph {
 
 impl Scale for Morph {
     fn scale(&mut self, scaling: f64) {
-        self.model_matrix = self.model_matrix * Matrix4::new_scaling(scaling);
+        self.model_matrix *= Matrix4::new_scaling(scaling);
         self.update_vertices_world();
         self.update_normals_world();
     }

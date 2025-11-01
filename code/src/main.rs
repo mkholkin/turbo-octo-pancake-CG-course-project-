@@ -1,12 +1,12 @@
+mod app;
 mod config;
 mod objects;
 mod render;
 mod scene;
 mod utils;
-mod app;
 
 use app::MyEguiApp;
-use eframe::egui::{Context};
+use eframe::egui::Context;
 use eframe::{App, Frame, NativeOptions};
 
 impl App for MyEguiApp {
