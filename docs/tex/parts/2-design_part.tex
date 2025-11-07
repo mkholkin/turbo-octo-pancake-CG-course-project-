@@ -1,12 +1,11 @@
 \chapter{Конструкторская часть}
 
-
 \section{Требования к программному обеспечению}
 Программа должна предоставлять пользователю графический интерфейс, позволяющий:
 \begin{itemize}
     \item загрузить исходный и целевой объект из \textit{.obj} файла;
     \item изменить цвет и оптические свойства поверхности загруженных объектов;
-    \item просматривать каждый объект и результат морфинга посредством поворота и масштабирования;
+    \item просматривать по отдельности каждый объект и результат морфинга посредством поворота и масштабирования;
     \item изменять масштабирование и поворот исходного и целевого объектов морфинга;
     \item выбирать стадию морфинга объектов.
 \end{itemize}
@@ -26,7 +25,7 @@
     \begin{itemize}
         \item массива точек;
         \item массива треугольников (индексы вершин);
-        \item массива внешних нормалей к треугольникам;
+        \item массива единичных внешних нормалей к треугольникам;
         \item материала;
         \item матрицы преобразований.
     \end{itemize}
@@ -36,13 +35,14 @@
         \item массива точек;
         \item массива функций, интерполирующих вершины в момент $t$;
         \item массива треугольников (индексы вершин);
-        \item массива внешних нормалей к треугольникам;
+        \item массива единичных внешних нормалей к треугольникам;
         \item массива функций, интерполирующих внешние нормали в момент $t$;
         \item материала;
         \item функции интерполирующей материал в момент $t$;
         \item матрицы преобразований.
     \end{itemize}
 
+%   TODO: пересмотреть состав камеры
     \item[4)] камера состоит из:
     \begin{itemize}
         \item положения;
@@ -57,7 +57,7 @@
     \begin{itemize}
         \item положения;
         \item интесивности;
-        \item цвета; TODO: возможно убрать
+        % \item цвета; TODO: возможно убрать
     \end{itemize}
 
     \item[6)] материал состоит из:
@@ -69,21 +69,22 @@
     \end{itemize}
 \end{enumerate}
 
-Для построения суперсетки используется структура данных DCEL (doubly connected edge list)~\cite{alexa}. Визуальное представление структуры данных приведено на рисунке~\ref{fig:DCEL}.
+Для построения суперсетки используется структура данных DCEL (doubly connected edge list)~\cite{alexa}.
+Визуальное представление структуры данных приведено на рисунке~\ref{fig:DCEL}.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{DCEL}
-    \label{fig:DCEL}
     \caption{DCEL (doubly connected edge list)~\cite{alexa}}
+    \label{fig:DCEL}
 \end{figure}
 
 DCEL состоит из:
 
 \begin{itemize}
-    \item массив вершин;
-    \item массив полуребер;
-    \item массив граней;
+    \item массива вершин;
+    \item массива полуребер;
+    \item массива граней;
 \end{itemize}
 
 Полуребро состоит из:
@@ -96,6 +97,51 @@ DCEL состоит из:
 
 Грань состоит из индекса полуребра, связанного с ней.
 
+\section{Разработка алгоритмов}
+
+\begin{figure}[H]
+    \label{fig:morphig_idef0}
+    \includegraphics[width=\textwidth]{morphing_idef0}
+    \caption{Функциональная диаграмма первого уровня, описывающая процесс построения морфинга}
+\end{figure}
+
+Схемы основных алгоритмов, используемых в программном обеспечены представлены на рисунках~\ref{fig:flowсhart_z-buff}--\ref{fig:flowсhart_vertex_relocation}.
+
+\begin{figure}[H]
+    \label{fig:flowchart_z-buff}
+    \includegraphics[width=\textwidth]{flowchart_z-buff}
+    \caption{Схема алгоритма отрисовки объекта с использованием \textit{z}-буфера и модифицированной закраски Гуро}
+\end{figure}
+
+\begin{figure}[H]
+    \label{fig:flowchart_parametrization}
+    \includegraphics[width=\textwidth]{flowchart_parametriztion}
+    \caption{Схема алгоритма сферической параметризации сетки}
+\end{figure}
+
+\begin{figure}[H]
+    \label{fig:flowchart_relaxation}
+    \includegraphics[width=\textwidth]{flowchart_relaxation}
+    \caption{Схема алгоритма релаксации сетки}
+\end{figure}
+
+\begin{figure}[H]
+    \label{fig:flowchart_build_supermesh}
+    \includegraphics[width=\textwidth]{flowchart_bulid_supermesh}
+    \caption{Схема алгоритма построения суперсетки на единичной сфере}
+\end{figure}
+
+\begin{figure}[H]
+    \label{fig:flowchart_vertex_relocation}
+    \includegraphics[width=\textwidth]{flowchart_vertex_relocation}
+    \caption{Схема алгоритма вычисления положения вершин суперсетки на поверхности объекта по их параметрическим координатам}
+\end{figure}
+
+\begin{figure}[H]
+    \label{fig:flowchart_normals_relocation}
+    \includegraphics[width=\textwidth]{flowchart_normals_relocation}
+    \caption{Схема алгоритма определения нормалей к граням суперсетки на основе соответствия с сетокой объекта в параметрическом пространстве}
+\end{figure}
 
 \section{Математические основы алгоритмов}
 
@@ -148,28 +194,35 @@ DCEL состоит из:
     \item[3)] проверить принадлежность точек обеим дугам.
 \end{enumerate}
 
-Пусть дуга $A$ ограничена точками $A_0$, $A_1$, а дуга $B$ --- $B_0$, $B_1$.
-
-Направляющий вектор прямой можно вычислить как векторное произведение нормалей к плоскостям, содержащим дуги:
-
+Пусть дуга $A$ задана радиус-векторами $\mathbf{A_0}$ и $\mathbf{A_1}$, а дуга $B$~--- векторами $\mathbf{B_0}$ и $\mathbf{B_1}$. Нормали к плоскостям, содержащим дуги, вычисляются согласно~\eqref{eq:arc_normals}:
 \begin{equation}
+    \label{eq:arc_normals}
+    \begin{cases}
+        \mathbf{n_A} = \mathbf{A_0} \times \mathbf{A_1} \\
+        \mathbf{n_B} = \mathbf{B_0} \times \mathbf{B_1}
+    \end{cases}
+\end{equation}
+
+Направляющий вектор $\mathbf{d}$ прямой их пересечения равен векторному произведению нормалей, как показано в~\eqref{eq:dir_vector}:
+\begin{equation}
+    \label{eq:dir_vector}
     \mathbf{d} = \mathbf{n_A} \times \mathbf{n_B} = (\mathbf{A_0} \times  \mathbf{A_1}) \times (\mathbf{B_0} \times  \mathbf{B_1})
 \end{equation}
 
-Точки пересечения с единичной сферой равны:
-
+Радиус-векторы точек-кандидатов, полученные пересечением этой прямой с единичной сферой, определяются по формуле~\eqref{eq:candidate_points}:
 \begin{equation}
-    P_{1,2} = \pm \frac{\mathbf{d}}{\parallel\mathbf{d}\parallel}
+    \label{eq:candidate_points}
+    \mathbf{P}_{1,2} = \pm \frac{\mathbf{d}}{\|\mathbf{d}\|}
 \end{equation}
 
-Т.~к. длина радиус-векторов всех точек на единичной сфере равна 1, скалярное произведение равно косинусу угла между векторами. В таком случае точка $P_{1,2}$ принадлежит обеим дугам $A$ и $B$, а следовательно является их пересечением если:
+Точка $\mathbf{P}$ лежит на дуге $\mathbf{A_0A_1}$ тогда и только тогда, когда сумма сферических расстояний от концов дуги до точки равна длине самой дуги. На единичной сфере, где радиус-векторы точек единичны, сферическое расстояние равно углу между векторами и вычисляется через арккосинус их скалярного произведения.
 
+Следовательно, одна из точек $\mathbf{P}$, найденных в~\eqref{eq:candidate_points}, является пересечением, если для нее выполняются условия~\eqref{eq:arc_intersect}:
 \begin{equation}
+    \label{eq:arc_intersect}
     \begin{cases}
-        A_0 \cdot A_1 \le A_0 \cdot P_{1,2}\\
-        A_0 \cdot A_1 \le A_1 \cdot P_{1,2}\\
-        B_0 \cdot B_1 \le B_0 \cdot P_{1,2}\\
-        B_0 \cdot B_1 \le B_1 \cdot P_{1,2}
+        \arccos{(\mathbf{A_0} \cdot \mathbf{P})} + \arccos{(\mathbf{P} \cdot \mathbf{A_1})} \leqslant \arccos{(\mathbf{A_0} \cdot \mathbf{A_1})} \\
+        \arccos{(\mathbf{B_0} \cdot \mathbf{P})} + \arccos{(\mathbf{P} \cdot \mathbf{B_1})} \leqslant \arccos{(\mathbf{B_0} \cdot \mathbf{B_1})}
     \end{cases}
 \end{equation}
 
@@ -202,7 +255,7 @@ DCEL состоит из:
 $M_A$ --- известная точка на плоскости $A$\\
 $\mathbf{n_A}$ --- вектор нормали к $A$.
 
-Подставив~\eqref{eq:ray-param} в~\eqref{eq:plane}, получим уравнение~\eqref{eq:t-intersect} для нахождения параметра $t$ точки пересечения луча с плоскостью полигона.
+После подстановки~\eqref{eq:ray-param} в~\eqref{eq:plane}, получилось уравнение~\eqref{eq:t-intersect} для нахождения параметра $t$ точки пересечения луча с плоскостью полигона.
 
 \begin{equation}
     \label{eq:t-intersect}
@@ -222,34 +275,34 @@ $\mathbf{n_A}$ --- вектор нормали к $A$.
 \begin{equation}
     \label{eq:rot_x}
     R_X(\theta) =
-    \begin{bmatrix}
+    \begin{pmatrix}
         1 & 0 & 0 & 0 \\
         0 & \cos\theta & -\sin\theta & 0 \\
         0 & \sin\theta & \cos\theta & 0 \\
         0 & 0 & 0 & 1
-    \end{bmatrix}
+    \end{pmatrix}
 \end{equation}
 
 \begin{equation}
     \label{eq:rot_y}
     R_Y(\theta) =
-    \begin{bmatrix}
+    \begin{pmatrix}
         \cos\theta & 0 & \sin\theta & 0 \\
         0 & 1 & 0 & 0 \\
         -\sin\theta & 0 & \cos\theta & 0 \\
         0 & 0 & 0 & 1
-    \end{bmatrix}
+    \end{pmatrix}
 \end{equation}
 
 \begin{equation}
     \label{eq:rot_z}
     R_Z(\theta) =
-    \begin{bmatrix}
+    \begin{pmatrix}
         \cos\theta & -\sin\theta & 0 & 0 \\
         \sin\theta & \cos\theta & 0 & 0 \\
         0 & 0 & 1 & 0 \\
         0 & 0 & 0 & 1
-    \end{bmatrix}
+    \end{pmatrix}
 \end{equation}
 
 Матрица масштабирования представлена в формуле~\eqref{eq:scale}.
@@ -257,12 +310,12 @@ $\mathbf{n_A}$ --- вектор нормали к $A$.
 \begin{equation}
     \label{eq:scale}
     S =
-    \begin{bmatrix}
+    \begin{pmatrix}
         S_X & 0 & 0 & 0 \\
         0 & S_Y & 0 & 0 \\
         0 & 0 & S_Z & 0 \\
         0 & 0 & 0 & 1
-    \end{bmatrix}
+    \end{pmatrix}
 \end{equation}
 
 %TODO: Возможно не стоит об этом писать
@@ -279,47 +332,8 @@ $\mathbf{n_A}$ --- вектор нормали к $A$.
 %    \end{bmatrix}
 %\end{equation}
 
-\section{Разработка алгоритмов}
-
-\begin{figure}[H]
-    \label{fig:morphig_idef0}
-    \includegraphics[width=\textwidth]{morphing_idef0}
-    \caption{Функциональная модель построения морфинга}
-\end{figure}
-
-Схемы основных алгоритмов, используемых в программном обеспечены представлены на рисунках~\ref{fig:flowсhart_z-buff}--\ref{fig:flowсhart_vertex_relocation}.
-
-\begin{figure}[H]
-    \label{fig:flowchart_z-buff}
-    \includegraphics[width=\textwidth]{flowchart_z-buff}
-    \caption{Схема алгоритма отрисовки объекта с использованием \textit{z}-буфера и модифицированной закраски Гуро}
-\end{figure}
-
-\begin{figure}[H]
-    \label{fig:flowchart_parametrization}
-    \includegraphics[width=\textwidth]{flowchart_parametriztion}
-    \caption{Схема алгоритма сферической параметризации сетки}
-\end{figure}
-
-\begin{figure}[H]
-    \label{fig:flowchart_relaxation}
-    \includegraphics[width=\textwidth]{flowchart_relaxation}
-    \caption{Схема алгоритма релаксации сетки}
-\end{figure}
-
-\begin{figure}[H]
-    \label{fig:flowchart_build_supermesh}
-    \includegraphics[width=\textwidth]{flowchart_bulid_supermesh}
-    \caption{Схема алгоритма построения суперсетки на единичной сфере}
-\end{figure}
-
-\begin{figure}[H]
-    \label{fig:flowchart_vertex_relocation}
-    \includegraphics[width=\textwidth]{flowchart_vertex_relocation}
-    \caption{Схема алгоритма переноса вершин суперсетки с единичной сферы в мировое пространство}
-\end{figure}
-
-
 \section*{Вывод}
+
+В данном разделе была приведена функциональная схема морфинга, разработаны и представлены схемы основных алгоритмов и их математические основы.
 
 \clearpage

@@ -30,15 +30,14 @@
           <y:Geometry height="100.0" width="80.0" x="776.7839750744048" y="0.0"/>
           <y:Fill color2="#B7C9E3" hasColor="false" transparent="false"/>
           <y:BorderStyle color="#000000" type="line" width="1.0"/>
-          <y:NodeLabel alignment="left" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="88.796875" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="bottom" visible="true" width="359.705078125" x="3.9999999999998863" xml:space="preserve" y="7.203125">Перенос вершин параметризованной сетки
+          <y:NodeLabel alignment="left" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="88.796875" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="bottom" visible="true" width="422.3828125" x="4.0" xml:space="preserve" y="5.6015625">Перенос вершин из параметрического пространства
 на поверхность объекта в мировом пространстве
 Входные данные:
-points - точки на единичной сфере
-parametrized_mesh - параметризованная сетка объекта
-vertices_world - вершины объекта в мировом пространстве<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="-0.2887157990758485" labelRatioY="0.5" nodeRatioX="0.5" nodeRatioY="0.5" offsetX="0.0" offsetY="-4.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
+points - точки (вершины) на единичной сфере
+parametrized_mesh - сетка объекта в параметрическом пространстве
+vertices_world - вершины объекта в мировом пространстве<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="-0.32006843614168123" labelRatioY="0.0" nodeRatioX="0.5" nodeRatioY="0.0" offsetX="0.0" offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
           <y:StyleProperties>
             <y:Property class="java.lang.Byte" name="com.yworks.flowchart.style.orientation" value="0"/>
-            <y:Property class="java.lang.Byte" name="LAYER_STYLE_PROPERTY_KEY" value="1"/>
           </y:StyleProperties>
         </y:GenericNode>
       </data>

@@ -1,11 +1,11 @@
 \documentclass[a4paper, 14pt]{extreport}
-
-\usepackage[T2A]{fontenc}
 \usepackage[utf8]{inputenc}
+\usepackage[T2A,T1]{fontenc}
 \usepackage[english,russian]{babel}
 \usepackage{amssymb,amsfonts,amsmath,mathtext,cite,enumerate,float}
 \usepackage{pgfplots}
 \usepackage{graphicx}
+\usepackage{makecell}
 \usepackage{tocloft}
 \usepackage{listings}
 \usepackage{caption}
@@ -24,9 +24,21 @@
 \usepackage{svg}
 \usepackage{cleveref}
 \usepackage{tabularx}
+\renewcommand{\tabularxcolumn}[1]{m{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}m{#1}}
+\newcolumntype{J}[1]{>{\justifying\arraybackslash}m{#1}}
 \usepackage{array}
+\usepackage{yhmath}
+\usepackage{pgfplotstable}
+\usepackage{booktabs}
+\usepackage{siunitx}  % Для выравнивания чисел по десятичному разделителю
 
-
+%\usepackage[
+%    backend=biber,                % Использовать biber вместо bibtex (ОБЯЗАТЕЛЬНО)
+%    style=gost-numeric,           % Стиль цитирования по ГОСТ. См. варианты ниже
+%    sorting=none,                 % Сортировка списка (none = по мере цитирования)
+%    % backref=true                  % Опция: добавлять номера страниц, где цитируется источник
+%]{biblatex}
 \usepackage[figure,table]{totalcount}
 \usepackage{lastpage}
 
@@ -36,8 +48,8 @@
 \svgpath{{images/}}
 
 \newcommand{\ssr}[1]{\begin{center}
-		\LARGE\bfseries{#1}
-	\end{center} \addcontentsline{toc}{chapter}{#1}  }
+\LARGE\bfseries{#1}
+\end{center} \addcontentsline{toc}{chapter}{#1}  }
 \newcommand{\crefrangeconjunction}{--}
 
 \makeatletter
@@ -97,39 +109,39 @@
 \newcommand{\floor}[1]{\lfloor #1 \rfloor}
 
 \lstset{ %
-	language=caml,                 % выбор языка для подсветки (здесь это С)
-	basicstyle=\small\ttfamily, % размер и начертание шрифта для подсветки кода
-	numbers=none,               % где поставить нумерацию строк (слева\справа)
-	numberstyle=\tiny,           % размер шрифта для номеров строк
-	stepnumber=1,                   % размер шага между двумя номерами строк
- 	numbersep=5pt,                % как далеко отстоят номера строк от подсвечиваемого кода
-	showspaces=false,            % показывать или нет пробелы специальными отступами
-	showstringspaces=false,      % показывать или нет пробелы в строках
-	showtabs=false,             % показывать или нет табуляцию в строках
-	frame=single,              % рисовать рамку вокруг кода
-	tabsize=2,                 % размер табуляции по умолчанию равен 2 пробелам
-	captionpos=t,              % позиция заголовка вверху [t] или внизу [b]
-	breaklines=true,           % автоматически переносить строки (да\нет)
-	breakatwhitespace=false, % переносить строки только если есть пробел
-	escapeinside={\#*}{*)},   % если нужно добавить комментарии в коде
-	abovecaptionskip=-5pt,
-	inputencoding=utf8,
-	extendedchars=true,
-	literate=
-	{а}{{\cyra}}1 {б}{{\cyrb}}1 {в}{{\cyrv}}1 {г}{{\cyrg}}1 {д}{{\cyrd}}1
-	{е}{{\cyre}}1 {ё}{{\cyrerev}}1 {ж}{{\cyrzh}}1 {з}{{\cyrz}}1 {и}{{\cyri}}1
-	{й}{{\cyrishrt}}1 {к}{{\cyrk}}1 {л}{{\cyrl}}1 {м}{{\cyrm}}1 {н}{{\cyrn}}1
-	{о}{{\cyro}}1 {п}{{\cyrp}}1 {р}{{\cyrr}}1 {с}{{\cyrs}}1 {т}{{\cyrt}}1
-	{у}{{\cyru}}1 {ф}{{\cyrf}}1 {х}{{\cyrh}}1 {ц}{{\cyrc}}1 {ч}{{\cyrch}}1
-	{ш}{{\cyrsh}}1 {щ}{{\cyrshch}}1 {ъ}{{\cyrhrdsn}}1 {ы}{{\cyrery}}1 {ь}{{\cyrsftsn}}1
-	{э}{{\cyrerev}}1 {ю}{{\cyryu}}1 {я}{{\cyrya}}1
-	{А}{{\CYRA}}1 {Б}{{\CYRB}}1 {В}{{\CYRV}}1 {Г}{{\CYRG}}1 {Д}{{\CYRD}}1
-	{Е}{{\CYRE}}1 {Ё}{{\CYREREV}}1 {Ж}{{\CYRZH}}1 {З}{{\CYRZ}}1 {И}{{\CYRI}}1
-	{Й}{{\CYRISHRT}}1 {К}{{\CYRK}}1 {Л}{{\CYRL}}1 {М}{{\CYRM}}1 {Н}{{\CYRN}}1
-	{О}{{\CYRO}}1 {П}{{\CYRP}}1 {Р}{{\CYRR}}1 {С}{{\CYRS}}1 {Т}{{\CYRT}}1
-	{У}{{\CYRU}}1 {Ф}{{\CYRF}}1 {Х}{{\CYRH}}1 {Ц}{{\CYRC}}1 {Ч}{{\CYRCH}}1
-	{Ш}{{\CYRSH}}1 {Щ}{{\CYRSHCH}}1 {Ъ}{{\CYRHRDSN}}1 {Ы}{{\CYRERY}}1 {Ь}{{\CYRSFTSN}}1
-	{Э}{{\CYREREV}}1 {Ю}{{\CYRYU}}1 {Я}{{\CYRYA}}1
+    language=caml,                 % выбор языка для подсветки (здесь это С)
+    basicstyle=\small\ttfamily, % размер и начертание шрифта для подсветки кода
+    numbers=none,               % где поставить нумерацию строк (слева\справа)
+    numberstyle=\tiny,           % размер шрифта для номеров строк
+    stepnumber=1,                   % размер шага между двумя номерами строк
+    numbersep=5pt,                % как далеко отстоят номера строк от подсвечиваемого кода
+    showspaces=false,            % показывать или нет пробелы специальными отступами
+    showstringspaces=false,      % показывать или нет пробелы в строках
+    showtabs=false,             % показывать или нет табуляцию в строках
+    frame=single,              % рисовать рамку вокруг кода
+    tabsize=2,                 % размер табуляции по умолчанию равен 2 пробелам
+    captionpos=t,              % позиция заголовка вверху [t] или внизу [b]
+    breaklines=true,           % автоматически переносить строки (да\нет)
+    breakatwhitespace=false, % переносить строки только если есть пробел
+    escapeinside={\#*}{*)},   % если нужно добавить комментарии в коде
+    abovecaptionskip=-5pt,
+    inputencoding=utf8,
+    extendedchars=true,
+    literate=
+        {а}{{\cyra}}1 {б}{{\cyrb}}1 {в}{{\cyrv}}1 {г}{{\cyrg}}1 {д}{{\cyrd}}1
+        {е}{{\cyre}}1 {ё}{{\cyrerev}}1 {ж}{{\cyrzh}}1 {з}{{\cyrz}}1 {и}{{\cyri}}1
+        {й}{{\cyrishrt}}1 {к}{{\cyrk}}1 {л}{{\cyrl}}1 {м}{{\cyrm}}1 {н}{{\cyrn}}1
+        {о}{{\cyro}}1 {п}{{\cyrp}}1 {р}{{\cyrr}}1 {с}{{\cyrs}}1 {т}{{\cyrt}}1
+        {у}{{\cyru}}1 {ф}{{\cyrf}}1 {х}{{\cyrh}}1 {ц}{{\cyrc}}1 {ч}{{\cyrch}}1
+        {ш}{{\cyrsh}}1 {щ}{{\cyrshch}}1 {ъ}{{\cyrhrdsn}}1 {ы}{{\cyrery}}1 {ь}{{\cyrsftsn}}1
+        {э}{{\cyrerev}}1 {ю}{{\cyryu}}1 {я}{{\cyrya}}1
+        {А}{{\CYRA}}1 {Б}{{\CYRB}}1 {В}{{\CYRV}}1 {Г}{{\CYRG}}1 {Д}{{\CYRD}}1
+        {Е}{{\CYRE}}1 {Ё}{{\CYREREV}}1 {Ж}{{\CYRZH}}1 {З}{{\CYRZ}}1 {И}{{\CYRI}}1
+        {Й}{{\CYRISHRT}}1 {К}{{\CYRK}}1 {Л}{{\CYRL}}1 {М}{{\CYRM}}1 {Н}{{\CYRN}}1
+        {О}{{\CYRO}}1 {П}{{\CYRP}}1 {Р}{{\CYRR}}1 {С}{{\CYRS}}1 {Т}{{\CYRT}}1
+        {У}{{\CYRU}}1 {Ф}{{\CYRF}}1 {Х}{{\CYRH}}1 {Ц}{{\CYRC}}1 {Ч}{{\CYRCH}}1
+        {Ш}{{\CYRSH}}1 {Щ}{{\CYRSHCH}}1 {Ъ}{{\CYRHRDSN}}1 {Ы}{{\CYRERY}}1 {Ь}{{\CYRSFTSN}}1
+        {Э}{{\CYREREV}}1 {Ю}{{\CYRYU}}1 {Я}{{\CYRYA}}1
 }
 
 \pgfplotsset{width=0.85\linewidth, height=0.5\columnwidth}
@@ -146,6 +158,8 @@
 \setlist[enumerate]{leftmargin=1.25cm, itemindent=0.55cm}
 
 \newcommand{\specialcell}[2][c]{%
-	\begin{tabular}[#1]{@{}c@{}}#2\end{tabular}}
+    \begin{tabular}[#1]{@{}c@{}}#2\end{tabular}}
+
+%\addbibresource{lib.bib}
 
 \frenchspacing

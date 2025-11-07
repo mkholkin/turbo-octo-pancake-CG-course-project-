@@ -13,7 +13,7 @@
   <key attr.name="description" attr.type="string" for="edge" id="d9"/>
   <key for="edge" id="d10" yfiles.type="edgegraphics"/>
   <graph edgedefault="directed" id="G">
-    <data key="d0"/>
+    <data key="d0" xml:space="preserve"/>
     <node id="n0">
       <data key="d6">
         <y:GenericNode configuration="com.yworks.flowchart.terminator">
@@ -27,15 +27,14 @@
     <node id="n1">
       <data key="d6">
         <y:GenericNode configuration="com.yworks.flowchart.annotation">
-          <y:Geometry height="100.0" width="80.0" x="802.1155846974207" y="25.0"/>
+          <y:Geometry height="80.97363367089024" width="80.0" x="802.1155846974207" y="34.51318316455488"/>
           <y:Fill color2="#B7C9E3" hasColor="false" transparent="false"/>
           <y:BorderStyle color="#000000" type="line" width="1.0"/>
-          <y:NodeLabel alignment="left" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="88.796875" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="bottom" visible="true" width="378.513671875" x="0.02604129902420027" xml:space="preserve" y="7.203125">Перенос вершин параметризованной сетки
-на поверхность объекта в мировом пространстве
+          <y:NodeLabel alignment="left" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="74.6640625" horizontalTextPosition="center" iconTextGap="4" modelName="custom" textColor="#000000" verticalTextPosition="bottom" visible="true" width="428.69921875" x="4.0" xml:space="preserve" y="2.3095711708902513">Определение нормалей к граням суперсетки в мировом пространстве
 Входные данные:
-super_mesh - суперстека на единичной сфере
-parametrized_mesh - параметризованная сетка объекта
-normals - нормали к граням объекта в мировом пространстве<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="-0.2887157990758485" labelRatioY="0.5" nodeRatioX="0.5" nodeRatioY="0.5" offsetX="0.0" offsetY="-4.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
+super_mesh - суперстека на в параметрическом пространстве
+parametrized_mesh - сетка объекта в параметрическом пространстве
+normals - нормали к граням объекта в мировом пространстве<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="-0.32271952764084666" labelRatioY="0.5" nodeRatioX="0.5" nodeRatioY="0.5" offsetX="0.0" offsetY="-4.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
           <y:StyleProperties>
             <y:Property class="java.lang.Byte" name="com.yworks.flowchart.style.orientation" value="0"/>
           </y:StyleProperties>
@@ -498,7 +497,6 @@ super_mesh<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y
       </data>
     </edge>
     <edge id="e21" source="n3" target="n22">
-      <data key="d9"/>
       <data key="d10">
         <y:PolyLineEdge>
           <y:Path sx="0.0" sy="0.0" tx="0.0" ty="0.0"/>
@@ -509,7 +507,6 @@ super_mesh<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel><y
       </data>
     </edge>
     <edge id="e22" source="n22" target="n4">
-      <data key="d9"/>
       <data key="d10">
         <y:PolyLineEdge>
           <y:Path sx="0.0" sy="0.0" tx="0.0" ty="0.0"/>
