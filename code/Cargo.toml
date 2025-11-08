@@ -12,3 +12,10 @@ imageproc = "0.25.0"
 delaunator = "1.0.2"
 itertools = "0.14.0"
 rfd = "0.15.4"
+
+[dev-dependencies]
+criterion = "0.7.0"
+
+[[bench]]
+name = "morph_benchmark"
+harness = false
