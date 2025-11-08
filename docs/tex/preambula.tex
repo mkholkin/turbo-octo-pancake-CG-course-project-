@@ -41,10 +41,11 @@
 %]{biblatex}
 \usepackage[figure,table]{totalcount}
 \usepackage{lastpage}
+\usepackage{chngcntr}
 
 \setlist{nosep}
 
-\svgsetup{inkscape=exe}
+\svgsetup{inkscapeexe=exe}
 \svgpath{{images/}}
 
 \newcommand{\ssr}[1]{\begin{center}
@@ -161,5 +162,10 @@
     \begin{tabular}[#1]{@{}c@{}}#2\end{tabular}}
 
 %\addbibresource{lib.bib}
+
+\AtBeginDocument{
+    \counterwithin{lstlisting}{chapter}
+    \renewcommand{\thelstlisting}{\thechapter.\arabic{lstlisting}}
+}
 
 \frenchspacing

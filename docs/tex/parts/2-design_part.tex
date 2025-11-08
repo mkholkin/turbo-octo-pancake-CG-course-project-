@@ -97,50 +97,50 @@ DCEL состоит из:
 
 Грань состоит из индекса полуребра, связанного с ней.
 
-\section{Разработка алгоритмов}
+\section{Описание алгоритмов}
 
 \begin{figure}[H]
-    \label{fig:morphig_idef0}
     \includegraphics[width=\textwidth]{morphing_idef0}
     \caption{Функциональная диаграмма первого уровня, описывающая процесс построения морфинга}
+    \label{fig:morphig_idef0}
 \end{figure}
 
-Схемы основных алгоритмов, используемых в программном обеспечены представлены на рисунках~\ref{fig:flowсhart_z-buff}--\ref{fig:flowсhart_vertex_relocation}.
+Схемы основных алгоритмов, используемых в программном обеспечены представлены на рисунках~\ref{fig:flowchart-z-buff}--\ref{fig:flowchart_normals_relocation}.
 
 \begin{figure}[H]
-    \label{fig:flowchart_z-buff}
     \includegraphics[width=\textwidth]{flowchart_z-buff}
     \caption{Схема алгоритма отрисовки объекта с использованием \textit{z}-буфера и модифицированной закраски Гуро}
+    \label{fig:flowchart-z-buff}
 \end{figure}
 
 \begin{figure}[H]
-    \label{fig:flowchart_parametrization}
     \includegraphics[width=\textwidth]{flowchart_parametriztion}
     \caption{Схема алгоритма сферической параметризации сетки}
+    \label{fig:flowchart_parametrization}
 \end{figure}
 
 \begin{figure}[H]
-    \label{fig:flowchart_relaxation}
     \includegraphics[width=\textwidth]{flowchart_relaxation}
     \caption{Схема алгоритма релаксации сетки}
+    \label{fig:flowchart_relaxation}
 \end{figure}
 
 \begin{figure}[H]
-    \label{fig:flowchart_build_supermesh}
     \includegraphics[width=\textwidth]{flowchart_bulid_supermesh}
     \caption{Схема алгоритма построения суперсетки на единичной сфере}
+    \label{fig:flowchart_build_supermesh}
 \end{figure}
 
 \begin{figure}[H]
-    \label{fig:flowchart_vertex_relocation}
     \includegraphics[width=\textwidth]{flowchart_vertex_relocation}
     \caption{Схема алгоритма вычисления положения вершин суперсетки на поверхности объекта по их параметрическим координатам}
+    \label{fig:flowchart_vertex_relocation}
 \end{figure}
 
 \begin{figure}[H]
-    \label{fig:flowchart_normals_relocation}
     \includegraphics[width=\textwidth]{flowchart_normals_relocation}
     \caption{Схема алгоритма определения нормалей к граням суперсетки на основе соответствия с сетокой объекта в параметрическом пространстве}
+    \label{fig:flowchart_normals_relocation}
 \end{figure}
 
 \section{Математические основы алгоритмов}
@@ -159,10 +159,10 @@ DCEL состоит из:
 Барицентрическая координата $\alpha$ точки $P$ пропорциональна площади треугольника $PBC$ (см. рисунок~\ref{fig:barycentric}) (треугольника, противолежащего вершине $A$)~\cite{foley}.
 
 \begin{figure}[H]
-    \label{fig:barycentric}
     \centering
     \includegraphics[width=0.5\textwidth]{barycentric_coordinates}
     \caption{Точка $P$ разделяет треугольник $ABC$ на три меньших треугольника, площади которых соотносятся как $\alpha$, $\beta$ и $\gamma$; Барицентрические координаты точки $P$ равны ($\alpha$, $\beta$, $\gamma$)~\cite{foley}}
+    \label{fig:barycentric}
 \end{figure}
 
 Координата $\alpha$ точки $P$ определяется как отношение площади треугольника $PBC$ к площади всего треугольника $ABC$~\cite{foley}:
