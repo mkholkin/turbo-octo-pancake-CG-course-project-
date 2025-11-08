@@ -8,6 +8,7 @@ use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use std::error::Error;
 use std::fs;
 use std::io::{BufRead, BufReader};
+use crate::objects::model3d::Translate;
 
 #[derive(Clone)]
 pub struct TriangleMesh {
@@ -111,6 +112,13 @@ impl Scale for TriangleMesh {
     fn scale(&mut self, scaling: f64) {
         self.model_matrix *= Matrix4::new_scaling(scaling);
         self.update_vertices_world()
+    }
+}
+
+impl Translate for TriangleMesh {
+    fn translate(&mut self, translation: &Vector3<f64>) {
+        self.model_matrix = Matrix4::new_translation(translation) * self.model_matrix;
+        self.update_vertices_world();
     }
 }
 

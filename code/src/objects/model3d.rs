@@ -1,13 +1,12 @@
 use crate::objects::Point;
 use crate::utils::math::lerp;
 use image::Rgb;
-use nalgebra::{Matrix4, Vector4};
+use nalgebra::{Matrix4, Vector3, Vector4};
 pub type Triangle = (usize, usize, usize);
 
 pub trait Model3D {
     /// List of triangle faces
     fn triangles(&self) -> &Vec<Triangle>;
-    // fn edges(&'a self) -> &'a Vec<>;
 
     /// List of normalized external normals
     fn normals(&self) -> &Vec<Vector4<f64>>;
@@ -34,7 +33,7 @@ pub trait Model3D {
 }
 
 pub trait Translate {
-    fn translate(&mut self, translation: (f64, f64, f64));
+    fn translate(&mut self, translation: &Vector3<f64>);
 }
 
 pub trait Rotate {

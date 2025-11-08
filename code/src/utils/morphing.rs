@@ -89,8 +89,6 @@ fn relax_mesh(parametrized_mesh: &mut TriangleMesh, original_orientations: &[f64
 
         round_no += 1;
     }
-
-    println!("{}", round_no);
 }
 
 fn find_inner_point(mesh: &TriangleMesh) -> Option<Vertex> {
@@ -141,11 +139,6 @@ fn find_inner_point(mesh: &TriangleMesh) -> Option<Vertex> {
 }
 
 pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
-    let inner_point = find_inner_point(mesh).unwrap();
-    for v in mesh.vertices_world_mut() {
-        *v = Point3::from((v.coords - inner_point.coords).normalize());
-    }
-
     let vertices_world = mesh.vertices_world();
     let original_orientations: Vec<f64> = izip!(mesh.triangles(), mesh.normals())
         .map(|(tri, normal)| {
@@ -156,6 +149,12 @@ pub fn parametrize_mesh(mesh: &mut TriangleMesh) {
             v0.cross(&v1).dot(&v2).signum()
         })
         .collect();
+
+    let inner_point = find_inner_point(mesh).unwrap();
+    for v in mesh.vertices_world_mut() {
+        *v -= inner_point.coords;
+        v.coords.normalize_mut();
+    }
 
     relax_mesh(mesh, &original_orientations);
 
